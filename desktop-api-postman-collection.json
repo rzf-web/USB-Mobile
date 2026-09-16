@@ -1,0 +1,478 @@
+{
+  "info": {
+    "_postman_id": "001c708a-4db2-4eb7-baa8-ca0fb4b77fc0",
+    "name": "DESKTOP API Gateway",
+    "description": "Collection Desktop API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://rzfkomputer.com/desktop-api",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Autentikasi Customer (Login)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "login"
+          ]
+        },
+        "description": "Verifikasi email dan password customer ke database utama (db_rzfmember). Mengembalikan ID Customer dan nama database tenant dinamis.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"contoh@email.com\",\n  \"password\": \"password123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": []
+    },
+    {
+      "name": "Project Management Konveksi",
+      "description": "Folder API: Project Management Konveksi",
+      "item": [
+        {
+          "name": "Employee Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/login-employee",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "login-employee"
+              ]
+            },
+            "description": "Login pegawai berdasarkan nama dan password. Response mengembalikan informasi perusahaan serta data pegawai yang berhasil login.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"123456\",\n  \"username\": \"Budi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Change Employee Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/change-employee-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "change-employee-password"
+              ]
+            },
+            "description": "Mengubah password pegawai dengan melakukan validasi employeeId dan password lama. Password baru minimal 6 karakter dan harus berbeda dari password lama.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"PG001\",\n  \"newPassword\": \"654321\",\n  \"oldPassword\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Project Available by Workflow",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/employee-jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "employee-jobs"
+              ]
+            },
+            "description": "Mengambil daftar proyek yang dapat dikerjakan oleh pegawai berdasarkan jabatan dan alur proses produksi. Sistem menentukan pekerjaan yang tersedia berdasarkan proses sebelumnya dengan mode all atau partial.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"search\": \"\",\n  \"idproyek\": \"\",\n  \"previous\": \"all or partial (chose one)\",\n  \"idpegawai\": \"PG001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Get Job Wage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/wage?barcode=8999999999999&idItem=ITEM001&idPegawai=PG001&pekerjaan=Jahit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "wage"
+              ],
+              "query": [
+                {
+                  "key": "barcode",
+                  "value": "8999999999999",
+                  "description": "Barcode produk"
+                },
+                {
+                  "key": "idItem",
+                  "value": "ITEM001",
+                  "description": "ID item / produk"
+                },
+                {
+                  "key": "idPegawai",
+                  "value": "PG001",
+                  "description": "ID pegawai"
+                },
+                {
+                  "key": "pekerjaan",
+                  "value": "Jahit",
+                  "description": "Nama pekerjaan"
+                }
+              ]
+            },
+            "description": "Mengambil nilai upah pekerjaan berdasarkan prioritas barcode, kode produk dari 4 digit terakhir barcode, iditem, idpegawai, kemudian fallback ke General."
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Employee Earnings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/employee-earnings?idpegawai=PG001&startDate=2026-09-01&endDate=2026-09-13&status=Belum%20Lunas&kategori=Produksi&search=Budi&page=1&limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "employee-earnings"
+              ],
+              "query": [
+                {
+                  "key": "idpegawai",
+                  "value": "PG001",
+                  "description": "Filter berdasarkan ID pegawai"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2026-09-01",
+                  "description": "Tanggal mulai YYYY-MM-DD"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-09-13",
+                  "description": "Tanggal akhir YYYY-MM-DD"
+                },
+                {
+                  "key": "status",
+                  "value": "Belum Lunas",
+                  "description": "Filter status pembayaran"
+                },
+                {
+                  "key": "kategori",
+                  "value": "Produksi",
+                  "description": "Filter kategori pendapatan"
+                },
+                {
+                  "key": "search",
+                  "value": "Budi",
+                  "description": "Cari berdasarkan nama/ket/id"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Nomor halaman"
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Jumlah data per halaman"
+                }
+              ]
+            },
+            "description": "Mengambil data pendapatan pegawai dari tb_gaji dengan filter pegawai, tanggal, status, kategori, dan pencarian."
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Take Order (Ambil Pekerjaan)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/employee-work",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "employee-work"
+              ]
+            },
+            "description": "Mengambil alokasi pekerjaan proyek oleh pegawai (mencatat ke tb_btk). Mendukung mode 'project' (idproyek spesifik) dan mode 'barcode' (otomatis memilih proyek prioritas dengan deadline terdekat yang masih tersedia).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"project\",\n  \"nama\": \"Budi\",\n  \"items\": [\n    {\n      \"nama\": \"Kaos Hitam L\",\n      \"harga\": 2500,\n      \"iditem\": \"ITEM001\",\n      \"jumlah\": 20,\n      \"satuan\": \"PCS\",\n      \"barcode\": \"8999999999999\"\n    }\n  ],\n  \"kerja\": \"Jahit\",\n  \"action\": \"take_order\",\n  \"idproyek\": \"PRJ001\",\n  \"idpegawai\": \"PG001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Submit Work (Setor Pekerjaan)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/employee-work",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "employee-work"
+              ]
+            },
+            "description": "Menyetorkan hasil pekerjaan pegawai. Sistem akan memperbarui progress di tb_btk secara FIFO dan otomatis mencatat data pendapatan ke tb_gaji.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nama\": \"Budi\",\n  \"items\": [\n    {\n      \"ket\": \"Setoran Jahit Kaos Hitam L\",\n      \"harga\": 2500,\n      \"finish\": 10,\n      \"status\": \"Belum Lunas\",\n      \"barcode\": \"8999999999999\"\n    }\n  ],\n  \"kerja\": \"Jahit\",\n  \"action\": \"submit\",\n  \"idproyek\": \"PRJ001\",\n  \"idpegawai\": \"PG001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Update / Cancel Job Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/employee-work",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "employee-work"
+              ]
+            },
+            "description": "Mengubah rincian (action: 'update_order') atau membatalkan/menghapus order pekerjaan yang belum disetor (action: 'delete_order'). Jika barcode dikosongkan pada delete_order, seluruh pekerjaan aktif proyek tersebut akan dihapus.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"nama\": \"Kaos Hitam L\",\n      \"harga\": 2500,\n      \"jumlah\": 15,\n      \"barcode\": \"8999999999999\"\n    }\n  ],\n  \"kerja\": \"Jahit\",\n  \"action\": \"update_order\",\n  \"idproyek\": \"PRJ001\",\n  \"idpegawai\": \"PG001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Update / Delete Submission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Customer-ID",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/konveksi/employee-work",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "konveksi",
+                "employee-work"
+              ]
+            },
+            "description": "Mengubah data setoran (action: 'update_submit') atau menghapus setoran gaji (action: 'delete_submit'). Jumlah finish pada tb_btk akan otomatis disesuaikan/dikurangi kembali.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"harga\": 2500,\n  \"kerja\": \"Jahit\",\n  \"action\": \"update_submit\",\n  \"idgaji\": \"260913123000123\",\n  \"jumlah\": 12,\n  \"status\": \"Belum Lunas\",\n  \"idpegawai\": \"PG001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        }
+      ]
+    },
+    {
+      "name": "Cek Status Server (Ping)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/ping",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ping"
+          ]
+        },
+        "description": "Memeriksa kesiapan dan latency server backend."
+      },
+      "response": [],
+      "event": []
+    }
+  ]
+}
