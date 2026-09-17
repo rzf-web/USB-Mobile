@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../constant/app_color.dart';
 import '../core/session/session_manager.dart';
+import '../core/utils/app_formatter.dart';
 import '../services/konveksi_service.dart';
+import '../widgets/cached_product_image.dart';
+
+
 
 class DetailPekerjaanScreen extends StatefulWidget {
   const DetailPekerjaanScreen({super.key});
@@ -18,6 +22,8 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
   late int _income;
   late int _takenCount;
   late int _pricePerUnit;
+  late String _idProyek;
+  late String _idItem;
   late String _code;
   late String _date;
   late String _name;
@@ -28,6 +34,8 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
   late String _jenis;
   late String _koordinator;
   late int _itemCount;
+  late String _photo;
+  late String _photo1;
 
   @override
   void didChangeDependencies() {
@@ -38,19 +46,60 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         _isProduct = args['isProduct'] == true;
         _isLaporan = args['isLaporan'] == true;
         _paymentStatus = args['paymentStatus'] as String?;
-        _takenCount = args['taken'] as int? ?? 0;
-        _pricePerUnit = args['pricePerUnit'] as int? ?? 0;
+        _takenCount = args['taken'] as int? ?? args['jumlah'] as int? ?? 0;
+        _pricePerUnit = args['pricePerUnit'] as int? ??
+            args['harga'] as int? ??
+            args['upah'] as int? ??
+            0;
         _income = args['income'] as int? ?? (_takenCount * _pricePerUnit);
+        _idProyek = args['idproyek'] as String? ?? args['code'] as String? ?? '-';
+        _idItem = args['iditem'] as String? ?? '';
         _code = args['code'] as String? ?? '-';
         _date = args['date'] as String? ?? '-';
         _name = args['name'] as String? ?? '-';
         _priority = args['priority'] as String? ?? '-';
+        if (_priority == 'Belum Mulai' ||
+            _priority == 'Proses' ||
+            _priority == 'Selesai' ||
+            _priority == '-') {
+          final p = args['statusWaktu'] ?? args['status_waktu'] ?? args['prioritas'];
+          if (p != null &&
+              p.toString().isNotEmpty &&
+              !p.toString().contains('.')) {
+            _priority = p.toString();
+          } else {
+            _priority = 'Tinggi';
+          }
+        }
         _unit = args['unit'] as String? ?? 'Pcs';
-        _productCode = args['productCode'] as String? ?? '-';
+        _productCode =
+            args['productCode'] as String? ?? args['barcode'] as String? ?? '-';
         _pemesan = args['pemesan'] as String? ?? '-';
         _jenis = args['jenis'] as String? ?? '-';
         _koordinator = args['koordinator'] as String? ?? '-';
-        _itemCount = args['itemCount'] as int? ?? 0;
+        _itemCount = args['itemCount'] as int? ?? _takenCount;
+        _photo = args['photo'] as String? ?? '';
+        _photo1 = args['photo1'] as String? ?? '';
+
+        if (_pricePerUnit == 0 && _productCode.isNotEmpty && _productCode != '-') {
+          final empId = SessionManager.employeeId ?? '';
+          final empRole = SessionManager.employeeRole ?? '';
+          if (empId.isNotEmpty && empRole.isNotEmpty) {
+            KonveksiService().getJobWage(
+              barcode: _productCode,
+              idItem: _idItem,
+              idPegawai: empId,
+              pekerjaan: empRole,
+            ).then((wage) {
+              if (mounted && wage > 0) {
+                setState(() {
+                  _pricePerUnit = wage.toInt();
+                  _income = _takenCount * _pricePerUnit;
+                });
+              }
+            }).catchError((_) {});
+          }
+        }
       } else {
         _isProduct = false;
         _isLaporan = false;
@@ -58,6 +107,8 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         _income = 0;
         _takenCount = 0;
         _pricePerUnit = 0;
+        _idProyek = '-';
+        _idItem = '';
         _code = '-';
         _date = '-';
         _name = '-';
@@ -68,6 +119,8 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         _jenis = '-';
         _koordinator = '-';
         _itemCount = 0;
+        _photo = '';
+        _photo1 = '';
       }
       _initialized = true;
     }
@@ -192,7 +245,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              'Rp ${_formatNumber(calculatedIncome)}',
+                              AppFormatter.rupiah(calculatedIncome),
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -213,15 +266,19 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                           final empRole = SessionManager.employeeRole ?? '';
 
                           try {
+                            final projId = _idProyek.isNotEmpty && _idProyek != '-' ? _idProyek : _code;
                             await KonveksiService().updateOrder(
-                              idProyek: _code,
+                              idProyek: projId,
                               idPegawai: empId,
                               kerja: empRole,
                               items: [
                                 {
+                                  'idproyek': projId,
+                                  'iditem': _idItem,
                                   'barcode': _productCode,
                                   'nama': _name,
                                   'jumlah': count,
+                                  'satuan': _unit,
                                   'harga': _pricePerUnit,
                                 }
                               ],
@@ -426,7 +483,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Rp ${_formatNumber(_pricePerUnit)}',
+                              AppFormatter.rupiah(_pricePerUnit),
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -616,7 +673,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                                 ),
                               ),
                               Text(
-                                'Rp ${_formatNumber(calculatedIncome)}',
+                                AppFormatter.rupiah(calculatedIncome),
                                 style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -640,7 +697,9 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
 
                           try {
                             await KonveksiService().submitWork(
-                              idProyek: _code,
+                              idProyek: _idProyek.isNotEmpty && _idProyek != '-'
+                                  ? _idProyek
+                                  : _code,
                               idPegawai: empId,
                               nama: empName,
                               kerja: empRole,
@@ -648,8 +707,10 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                                 {
                                   'barcode': _productCode,
                                   'finish': count,
+                                  'satuan': _unit,
                                   'harga': _pricePerUnit,
-                                  'ket': 'Setoran $empRole $_name (${selectedGrade ?? 'Grade A'})',
+                                  'ket':
+                                      'Setoran $empRole $_name (${selectedGrade ?? 'Grade A'})',
                                   'status': 'Belum Lunas',
                                 }
                               ],
@@ -685,13 +746,6 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         );
       },
     );
-  }
-
-  String _formatNumber(int number) {
-    return number.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]}.',
-        );
   }
 
   @override
@@ -788,7 +842,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Rp ${_formatNumber(_income)}',
+                                  AppFormatter.rupiah(_income),
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -939,7 +993,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Rp ${_formatNumber(_pricePerUnit)}',
+                                    AppFormatter.rupiah(_pricePerUnit),
                                     style: const TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
@@ -973,7 +1027,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Rp ${_formatNumber(_takenCount * _pricePerUnit)}',
+                                    AppFormatter.rupiah(_takenCount * _pricePerUnit),
                                     style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w700,
@@ -1222,14 +1276,49 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
   }
 
   Widget _buildShirtPreview({required bool isBack}) {
-    return Container(
-      width: 130,
-      height: 140,
-      alignment: Alignment.center,
-      child: CustomPaint(
-        size: const Size(120, 130),
-        painter: ShirtPainter(isBack: isBack),
-      ),
+    final photoName = isBack ? _photo1 : _photo;
+    final label = isBack ? 'Tampak Belakang' : 'Tampak Depan';
+
+    return Column(
+      children: [
+        Container(
+          width: 140,
+          height: 160,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFEAECF0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: CachedProductImage(
+            photoName: photoName,
+            fit: BoxFit.contain,
+            fallbackBuilder: (context) => Center(
+              child: CustomPaint(
+                size: const Size(100, 110),
+                painter: ShirtPainter(isBack: isBack),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF475467),
+          ),
+        ),
+      ],
     );
   }
 }

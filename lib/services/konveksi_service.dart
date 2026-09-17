@@ -1,4 +1,5 @@
 import '../constant/api_endpoints.dart';
+import '../core/cache/app_cache_manager.dart';
 import '../core/network/dio_client.dart';
 import '../models/konveksi/employee_earnings_model.dart';
 import '../models/konveksi/employee_job_model.dart';
@@ -9,11 +10,82 @@ class KonveksiService {
 
   KonveksiService({DioClient? client}) : _client = client ?? DioClient.instance;
 
+  // Key generator untuk cache
+  static String _cacheKeyAvailableJobs(
+          String idPegawai, String startDate, String endDate, String search) =>
+      'jobs_available_${idPegawai}_${startDate}_${endDate}_$search';
+
+  static String _cacheKeyMyJobs(
+          String idPegawai, String kerja, String startDate, String endDate) =>
+      'jobs_my_${idPegawai}_${kerja}_${startDate}_$endDate';
+
+
+  static String _cacheKeyEarnings(
+          String idPegawai, String? startDate, String? endDate, String? status) =>
+      'earnings_${idPegawai}_${startDate ?? ""}_${endDate ?? ""}_${status ?? ""}';
+
+  /// Mengambil daftar pekerjaan tersedia yang sudah tersimpan di cache lokal (instan 0 ms).
+  List<EmployeeJobModel>? getCachedAvailableJobs({
+    required String idPegawai,
+    String search = '',
+    String startDate = '',
+    String endDate = '',
+  }) {
+    final key = _cacheKeyAvailableJobs(idPegawai, startDate, endDate, search);
+    final raw = AppCacheManager.getJson(key);
+    if (raw is List) {
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map((e) => EmployeeJobModel.fromJson(e))
+          .toList();
+    }
+    return null;
+  }
+
+  /// Mengambil daftar pekerjaan pegawai yang tersimpan di cache lokal (instan 0 ms).
+  List<EmployeeJobModel>? getCachedMyJobs({
+    required String idPegawai,
+    String kerja = '',
+    String startDate = '',
+    String endDate = '',
+  }) {
+    final key = _cacheKeyMyJobs(idPegawai, kerja, startDate, endDate);
+    final raw = AppCacheManager.getJson(key);
+    if (raw is List) {
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map((e) => EmployeeJobModel.fromJson(e))
+          .toList();
+    }
+    return null;
+  }
+
+  /// Mengambil data laporan pendapatan pegawai dari cache lokal (instan 0 ms).
+  EmployeeEarningsResponse? getCachedEmployeeEarnings({
+    required String idPegawai,
+    String? startDate,
+    String? endDate,
+    String? status,
+  }) {
+    final key = _cacheKeyEarnings(idPegawai, startDate, endDate, status);
+    final raw = AppCacheManager.getJson(key);
+    if (raw is Map<String, dynamic>) {
+      try {
+        return EmployeeEarningsResponse.fromJson(raw);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   Future<List<EmployeeJobModel>> getAvailableJobs({
     required String idPegawai,
     String search = '',
     String idProyek = '',
     String previous = 'all',
+    String startDate = '',
+    String endDate = '',
   }) async {
     final response = await _client.post(
       ApiEndpoints.employeeJobs,
@@ -22,6 +94,8 @@ class KonveksiService {
         'search': search,
         'idproyek': idProyek,
         'previous': previous,
+        if (startDate.isNotEmpty) 'startDate': startDate,
+        if (endDate.isNotEmpty) 'endDate': endDate,
       },
     );
 
@@ -35,16 +109,80 @@ class KonveksiService {
             .whereType<Map<String, dynamic>>()
             .map((e) => EmployeeJobModel.fromJson(e))
             .toList();
+        AppCacheManager.setJson(
+          _cacheKeyAvailableJobs(idPegawai, startDate, endDate, search),
+          rawList,
+          ttl: const Duration(hours: 6),
+        );
       }
     } else if (data is List) {
       jobs = data
           .whereType<Map<String, dynamic>>()
           .map((e) => EmployeeJobModel.fromJson(e))
           .toList();
+      AppCacheManager.setJson(
+        _cacheKeyAvailableJobs(idPegawai, startDate, endDate, search),
+        data,
+        ttl: const Duration(hours: 6),
+      );
     }
 
     return jobs;
   }
+
+  Future<List<EmployeeJobModel>> getMyJobs({
+    required String idPegawai,
+    String kerja = '',
+    String startDate = '',
+    String endDate = '',
+  }) async {
+    try {
+      final response = await _client.post(
+        ApiEndpoints.employeeWork,
+        data: {
+          'action': 'my_jobs',
+          'idpegawai': idPegawai,
+          'kerja': kerja,
+          'mode': 'project',
+          if (startDate.isNotEmpty) 'startDate': startDate,
+          if (endDate.isNotEmpty) 'endDate': endDate,
+        },
+      );
+
+      final data = response.data;
+      List<EmployeeJobModel> jobs = [];
+
+      if (data is Map<String, dynamic>) {
+        final rawList = data['data'] ?? data['items'] ?? data['list'];
+        if (rawList is List) {
+          jobs = rawList
+              .whereType<Map<String, dynamic>>()
+              .map((e) => EmployeeJobModel.fromJson(e))
+              .toList();
+          AppCacheManager.setJson(
+            _cacheKeyMyJobs(idPegawai, kerja, startDate, endDate),
+            rawList,
+            ttl: const Duration(hours: 12),
+          );
+        }
+      } else if (data is List) {
+        jobs = data
+            .whereType<Map<String, dynamic>>()
+            .map((e) => EmployeeJobModel.fromJson(e))
+            .toList();
+        AppCacheManager.setJson(
+          _cacheKeyMyJobs(idPegawai, kerja, startDate, endDate),
+          data,
+          ttl: const Duration(hours: 12),
+        );
+      }
+
+      return jobs;
+    } catch (_) {
+      return [];
+    }
+  }
+
 
   Future<num> getJobWage({
     required String barcode,
@@ -64,8 +202,13 @@ class KonveksiService {
 
     final data = response.data;
     if (data is Map<String, dynamic>) {
-      final wage = data['wage'] ?? data['upah'] ?? data['harga'] ?? data['data'];
-      return num.tryParse(wage?.toString() ?? '0') ?? 0;
+      final inner = data['data'];
+      if (inner is Map<String, dynamic>) {
+        final innerWage = inner['upah'] ?? inner['wage'] ?? inner['harga'];
+        return num.tryParse(innerWage?.toString() ?? '0') ?? 0;
+      }
+      final outerWage = data['wage'] ?? data['upah'] ?? data['harga'] ?? inner;
+      return num.tryParse(outerWage?.toString() ?? '0') ?? 0;
     } else if (data is num) {
       return data;
     }
@@ -93,10 +236,17 @@ class KonveksiService {
       },
     );
 
-    return WorkActionResult.fromJson(
+    final result = WorkActionResult.fromJson(
       response.data,
       defaultSuccessMsg: 'Berhasil mengambil pekerjaan',
     );
+
+    if (result.success) {
+      await AppCacheManager.removePrefix('jobs_available_');
+      await AppCacheManager.removePrefix('jobs_my_');
+    }
+
+    return result;
   }
 
   Future<WorkActionResult> updateOrder({
@@ -116,10 +266,17 @@ class KonveksiService {
       },
     );
 
-    return WorkActionResult.fromJson(
+    final result = WorkActionResult.fromJson(
       response.data,
       defaultSuccessMsg: 'Berhasil memperbarui alokasi pekerjaan',
     );
+
+    if (result.success) {
+      await AppCacheManager.removePrefix('jobs_available_');
+      await AppCacheManager.removePrefix('jobs_my_');
+    }
+
+    return result;
   }
 
   Future<WorkActionResult> deleteOrder({
@@ -144,10 +301,17 @@ class KonveksiService {
       data: payload,
     );
 
-    return WorkActionResult.fromJson(
+    final result = WorkActionResult.fromJson(
       response.data,
       defaultSuccessMsg: 'Berhasil membatalkan pekerjaan',
     );
+
+    if (result.success) {
+      await AppCacheManager.removePrefix('jobs_available_');
+      await AppCacheManager.removePrefix('jobs_my_');
+    }
+
+    return result;
   }
 
   Future<WorkActionResult> submitWork({
@@ -156,11 +320,13 @@ class KonveksiService {
     required String nama,
     required String kerja,
     required List<Map<String, dynamic>> items,
+    String mode = 'project',
   }) async {
     final response = await _client.post(
       ApiEndpoints.employeeWork,
       data: {
         'action': 'submit',
+        'mode': mode,
         'idproyek': idProyek,
         'idpegawai': idPegawai,
         'nama': nama,
@@ -169,10 +335,17 @@ class KonveksiService {
       },
     );
 
-    return WorkActionResult.fromJson(
+    final result = WorkActionResult.fromJson(
       response.data,
       defaultSuccessMsg: 'Berhasil menyetorkan hasil pekerjaan',
     );
+
+    if (result.success) {
+      await AppCacheManager.removePrefix('jobs_my_');
+      await AppCacheManager.removePrefix('earnings_');
+    }
+
+    return result;
   }
 
   Future<WorkActionResult> updateSubmit({
@@ -196,10 +369,17 @@ class KonveksiService {
       },
     );
 
-    return WorkActionResult.fromJson(
+    final result = WorkActionResult.fromJson(
       response.data,
       defaultSuccessMsg: 'Berhasil memperbarui data setoran',
     );
+
+    if (result.success) {
+      await AppCacheManager.removePrefix('jobs_my_');
+      await AppCacheManager.removePrefix('earnings_');
+    }
+
+    return result;
   }
 
   Future<WorkActionResult> deleteSubmit({
@@ -217,10 +397,17 @@ class KonveksiService {
       },
     );
 
-    return WorkActionResult.fromJson(
+    final result = WorkActionResult.fromJson(
       response.data,
       defaultSuccessMsg: 'Berhasil menghapus setoran gaji',
     );
+
+    if (result.success) {
+      await AppCacheManager.removePrefix('jobs_my_');
+      await AppCacheManager.removePrefix('earnings_');
+    }
+
+    return result;
   }
 
   Future<EmployeeEarningsResponse> getEmployeeEarnings({
@@ -260,7 +447,16 @@ class KonveksiService {
       queryParameters: queryParams,
     );
 
+    if (response.data is Map<String, dynamic>) {
+      AppCacheManager.setJson(
+        _cacheKeyEarnings(idPegawai, startDate, endDate, status),
+        response.data,
+        ttl: const Duration(hours: 12),
+      );
+    }
+
     return EmployeeEarningsResponse.fromJson(response.data);
   }
+
 }
 

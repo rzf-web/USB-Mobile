@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../constant/app_color.dart';
 import '../core/session/session_manager.dart';
 import '../models/konveksi/employee_earnings_model.dart';
+import '../models/konveksi/employee_job_model.dart';
 import '../routes/app_routes.dart';
 import '../services/konveksi_service.dart';
 import '../widgets/skeleton.dart';
+import '../core/utils/app_formatter.dart';
 
 class BerandaScreen extends StatefulWidget {
   const BerandaScreen({super.key});
@@ -17,53 +21,181 @@ class _BerandaScreenState extends State<BerandaScreen> {
   int _currentNavIndex = 0;
   int _selectedTabIndex = 0;
 
-  final String _selectedYear = '2026';
-  final String _selectedMonth = 'September';
+  late String _selectedYear;
+  late String _selectedMonth;
+  int _fetchEarningsSeq = 0;
   bool _showSuccessBanner = false;
   bool _showFailBanner = false;
-  bool _hasAvailableJob = false;
+  Timer? _bannerTimer;
   bool _isLoading = true;
   int _completedCount = 0;
   int _totalEarnings = 0;
 
-  final Map<String, dynamic> _jobData = {
-    'idproyek': '',
-    'iditem': '',
-    'barcode': '',
-    'code': '',
-    'date': '',
-    'name': '',
-    'available': 0,
-    'priority': 'Normal',
-    'unit': 'Pcs',
-    'pricePerUnit': 0,
-  };
+  final List<Map<String, dynamic>> _projectJobs = [];
+  final List<Map<String, dynamic>> _productJobs = [];
+
+  List<Map<String, dynamic>> get _currentJobs =>
+      _selectedTabIndex == 0 ? _projectJobs : _productJobs;
+
+  void _showNotificationBanner({required bool success}) {
+    _bannerTimer?.cancel();
+    setState(() {
+      _showSuccessBanner = success;
+      _showFailBanner = !success;
+    });
+    _bannerTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _showSuccessBanner = false;
+          _showFailBanner = false;
+        });
+      }
+    });
+  }
+
+  void _hideNotificationBanner() {
+    _bannerTimer?.cancel();
+    setState(() {
+      _showSuccessBanner = false;
+      _showFailBanner = false;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedYear = now.year.toString();
+    _selectedMonth = AppFormatter.monthName(now.month);
     _loadJobs();
   }
 
-  Future<void> _loadJobs() async {
-    final empId = SessionManager.employeeId;
-    if (empId == null || empId.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 350));
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
+  @override
+  void dispose() {
+    _bannerTimer?.cancel();
+    super.dispose();
+  }
 
+  List<String> get _years => AppFormatter.getYearList(
+        selectedYear: _selectedYear,
+      );
+
+  void _loadFromCacheIfExists() {
+    final empId = SessionManager.employeeId;
+    if (empId == null || empId.isEmpty) return;
+
+    final (startDate, endDate) =
+        AppFormatter.dateRangeForMonth(_selectedYear, _selectedMonth);
+    final cachedJobs = KonveksiService().getCachedAvailableJobs(
+      idPegawai: empId,
+      startDate: startDate,
+      endDate: endDate,
+    );
+    final cachedEarnings = KonveksiService().getCachedEmployeeEarnings(
+      idPegawai: empId,
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    if (cachedJobs != null || cachedEarnings != null) {
+      final List<Map<String, dynamic>> loadedProjectJobs = [];
+      final List<Map<String, dynamic>> loadedProductJobs = [];
+
+      if (cachedJobs != null) {
+        for (final job in cachedJobs) {
+          if (job.progressTersedia <= 0) continue;
+          final idItem = job.items.isNotEmpty ? job.items.first.idItem : '';
+          final barcode = job.items.isNotEmpty ? job.items.first.barcode : '';
+          final unit = job.items.isNotEmpty ? job.items.first.satuan : 'Pcs';
+          final pricePerUnit = job.upahSatuan;
+
+          final jenisLower = (job.jenis ?? '').toLowerCase();
+          final idUpper = job.idProyek.toUpperCase();
+          final isProd = jenisLower.contains('produk') ||
+              jenisLower.contains('stok') ||
+              jenisLower.contains('stock') ||
+              idUpper.startsWith('PRD') ||
+              idUpper.startsWith('MB');
+
+          final jobMap = {
+            'idproyek': job.idProyek,
+            'iditem': idItem,
+            'barcode': barcode,
+            'code': job.kodeProyek ?? job.idProyek,
+            'date': job.deadline ?? '-',
+            'name': job.namaProyek,
+            'available': job.progressTersedia,
+            'priority': job.statusWaktu,
+            'unit': unit,
+            'pricePerUnit': pricePerUnit.toInt(),
+            'pemesan': job.pemesan ?? '-',
+            'jenis': job.jenis ?? '-',
+            'koordinator': job.koordinator ?? '-',
+            'itemCount': job.items.isNotEmpty ? job.items.first.jumlah : job.totalTarget,
+            'isProduct': isProd,
+            'photo': job.photo,
+            'photo1': job.photo1,
+          };
+
+          if (isProd) {
+            loadedProductJobs.add(jobMap);
+          } else {
+            loadedProjectJobs.add(jobMap);
+          }
+        }
+      }
+
+      int completed = _completedCount;
+      int totalEarning = _totalEarnings;
+      if (cachedEarnings != null && cachedEarnings.success) {
+        completed = cachedEarnings.items
+            .where((i) => !i.status.toLowerCase().contains('belum'))
+            .length;
+        totalEarning = cachedEarnings.totalPendapatan.toInt();
+      }
+
+      if (mounted) {
+        setState(() {
+          if (cachedJobs != null) {
+            _projectJobs.clear();
+            _projectJobs.addAll(loadedProjectJobs);
+            _productJobs.clear();
+            _productJobs.addAll(loadedProductJobs);
+          }
+          _completedCount = completed;
+          _totalEarnings = totalEarning;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchEarningsAndJobs() async {
+    final empId = SessionManager.employeeId;
+    if (empId == null || empId.isEmpty) return;
+
+    final currentSeq = ++_fetchEarningsSeq;
     try {
-      final jobsFuture = KonveksiService().getAvailableJobs(idPegawai: empId);
+      final (startDate, endDate) =
+          AppFormatter.dateRangeForMonth(_selectedYear, _selectedMonth);
+      final jobsFuture = KonveksiService().getAvailableJobs(
+        idPegawai: empId,
+        startDate: startDate,
+        endDate: endDate,
+      );
       final earningsFuture = KonveksiService()
-          .getEmployeeEarnings(idPegawai: empId)
+          .getEmployeeEarnings(
+            idPegawai: empId,
+            startDate: startDate,
+            endDate: endDate,
+          )
           .catchError((_) => EmployeeEarningsResponse(success: false));
 
       final results = await Future.wait([jobsFuture, earningsFuture]);
-      final jobs = results[0] as List;
-      final earningsRes = results[1] as EmployeeEarningsResponse;
+      if (!mounted || currentSeq != _fetchEarningsSeq) return;
 
-      if (!mounted) return;
+      final jobs = results[0] as List<EmployeeJobModel>;
+      final earningsRes = results[1] as EmployeeEarningsResponse;
 
       int completed = 0;
       int totalEarning = 0;
@@ -74,37 +206,104 @@ class _BerandaScreenState extends State<BerandaScreen> {
         totalEarning = earningsRes.totalPendapatan.toInt();
       }
 
-      if (jobs.isNotEmpty) {
-        setState(() {
-          final first = jobs.first;
-          _jobData['idproyek'] = first.idProyek;
-          _jobData['iditem'] =
-              first.items.isNotEmpty ? first.items.first.idItem : '';
-          _jobData['barcode'] =
-              first.items.isNotEmpty ? first.items.first.barcode : '';
-          _jobData['code'] = first.kodeProyek ?? first.idProyek;
-          _jobData['date'] = first.deadline ?? '-';
-          _jobData['name'] = first.namaProyek;
-          _jobData['available'] = first.progressTersedia;
-          _jobData['priority'] = first.statusWaktu;
-          _jobData['unit'] =
-              first.items.isNotEmpty ? first.items.first.satuan : 'Pcs';
-          _jobData['pricePerUnit'] = first.upahSatuan.toInt();
-          _hasAvailableJob = true;
-          _completedCount = completed;
-          _totalEarnings = totalEarning;
-        });
-      } else {
-        setState(() {
-          _hasAvailableJob = false;
-          _completedCount = completed;
-          _totalEarnings = totalEarning;
-        });
+      final List<Map<String, dynamic>> loadedProjectJobs = [];
+      final List<Map<String, dynamic>> loadedProductJobs = [];
+
+      for (final job in jobs) {
+        if (job.progressTersedia <= 0) continue;
+
+        final idItem = job.items.isNotEmpty ? job.items.first.idItem : '';
+        final barcode = job.items.isNotEmpty ? job.items.first.barcode : '';
+        final unit = job.items.isNotEmpty ? job.items.first.satuan : 'Pcs';
+        num pricePerUnit = job.upahSatuan;
+
+        if (pricePerUnit <= 0 && barcode.isNotEmpty) {
+          try {
+            final role = SessionManager.employeeRole ?? '';
+            final wage = await KonveksiService().getJobWage(
+              barcode: barcode,
+              idItem: idItem,
+              idPegawai: empId,
+              pekerjaan: role,
+            );
+            if (wage > 0) {
+              pricePerUnit = wage;
+            }
+          } catch (_) {}
+        }
+
+        final jenisLower = (job.jenis ?? '').toLowerCase();
+        final idUpper = job.idProyek.toUpperCase();
+        final isProd = jenisLower.contains('produk') ||
+            jenisLower.contains('stok') ||
+            jenisLower.contains('stock') ||
+            idUpper.startsWith('PRD') ||
+            idUpper.startsWith('MB');
+
+        final jobMap = {
+          'idproyek': job.idProyek,
+          'iditem': idItem,
+          'barcode': barcode,
+          'code': job.kodeProyek ?? job.idProyek,
+          'date': job.deadline ?? '-',
+          'name': job.namaProyek,
+          'available': job.progressTersedia,
+          'priority': job.statusWaktu,
+          'unit': unit,
+          'pricePerUnit': pricePerUnit.toInt(),
+          'pemesan': job.pemesan ?? '-',
+          'jenis': job.jenis ?? '-',
+          'koordinator': job.koordinator ?? '-',
+          'itemCount': job.items.isNotEmpty ? job.items.first.jumlah : job.totalTarget,
+          'isProduct': isProd,
+          'photo': job.photo,
+          'photo1': job.photo1,
+        };
+
+        if (isProd) {
+          loadedProductJobs.add(jobMap);
+        } else {
+          loadedProjectJobs.add(jobMap);
+        }
       }
+
+      if (!mounted || currentSeq != _fetchEarningsSeq) return;
+
+      setState(() {
+        _projectJobs.clear();
+        _projectJobs.addAll(loadedProjectJobs);
+        _productJobs.clear();
+        _productJobs.addAll(loadedProductJobs);
+        _completedCount = completed;
+        _totalEarnings = totalEarning;
+        _isLoading = false;
+      });
     } catch (_) {
       if (mounted) {
-        setState(() => _hasAvailableJob = false);
+        if (_projectJobs.isEmpty && _productJobs.isEmpty) {
+          setState(() {
+            _projectJobs.clear();
+            _productJobs.clear();
+            _isLoading = false;
+          });
+        }
       }
+    }
+  }
+
+  Future<void> _loadJobs() async {
+    final empId = SessionManager.employeeId;
+    if (empId == null || empId.isEmpty) {
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    // Tampilkan data cache terlebih dahulu (0 ms)
+    _loadFromCacheIfExists();
+
+    try {
+      await _fetchEarningsAndJobs();
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -112,22 +311,19 @@ class _BerandaScreenState extends State<BerandaScreen> {
     }
   }
 
-  void _onTabChanged(int index) async {
+
+  void _onTabChanged(int index) {
     if (_selectedTabIndex == index) return;
     setState(() {
       _selectedTabIndex = index;
-      _isLoading = true;
-    });
-    await Future.delayed(const Duration(milliseconds: 350));
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
     });
   }
 
-  void _openAmbilPekerjaanModal() {
+  void _openAmbilPekerjaanModal(Map<String, dynamic> job) {
     final TextEditingController countController = TextEditingController();
     int calculatedIncome = 0;
+    final int available = (job['available'] as num?)?.toInt() ?? 0;
+    final int pricePerUnit = (job['pricePerUnit'] as num?)?.toInt() ?? 0;
 
     showModalBottomSheet(
       context: context,
@@ -198,7 +394,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  _jobData['code'],
+                                  job['code'] ?? '-',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -207,7 +403,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
                                 ),
                               ),
                               Text(
-                                _jobData['date'],
+                                job['date'] ?? '-',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: Color(0xFF98A2B3),
@@ -216,15 +412,17 @@ class _BerandaScreenState extends State<BerandaScreen> {
                             ],
                           ),
                           const SizedBox(height: 10),
-                          const Text(
-                            'Nama Produk',
-                            style: TextStyle(
+                          Text(
+                            _selectedTabIndex == 0
+                                ? 'Nama Proyek'
+                                : 'Nama Produk',
+                            style: const TextStyle(
                               fontSize: 11,
                               color: Color(0xFF64748B),
                             ),
                           ),
                           Text(
-                            _jobData['name'],
+                            job['name'] ?? '-',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -247,7 +445,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${_jobData['available']}',
+                                    '$available',
                                     style: const TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
@@ -264,7 +462,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    _jobData['unit'],
+                                    job['unit'] ?? 'Pcs',
                                     style: const TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -276,9 +474,11 @@ class _BerandaScreenState extends State<BerandaScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Prioritas Proyek',
-                                    style: TextStyle(
+                                  Text(
+                                    _selectedTabIndex == 0
+                                        ? 'Prioritas Proyek'
+                                        : 'Prioritas Produk',
+                                    style: const TextStyle(
                                       fontSize: 11,
                                       color: Color(0xFF64748B),
                                     ),
@@ -306,7 +506,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          _jobData['priority'],
+                                          job['priority'] ?? 'Sedang',
                                           style: const TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w600,
@@ -326,7 +526,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Rp ${_formatNumber(_jobData['pricePerUnit'])}',
+                                    AppFormatter.rupiah(pricePerUnit),
                                     style: const TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
@@ -341,60 +541,137 @@ class _BerandaScreenState extends State<BerandaScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            RichText(
+                              text: const TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Jumlah Pekerjaan ',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColor.black,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: '*',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFFD92D20),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (available > 0)
+                              InkWell(
+                                onTap: () {
+                                  countController.text = available.toString();
+                                  countController.selection = TextSelection.fromPosition(
+                                    TextPosition(offset: countController.text.length),
+                                  );
+                                  setModalState(() {
+                                    calculatedIncome = available * pricePerUnit;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(4),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  child: Text(
+                                    'Ambil Semua ($available)',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColor.primary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: countController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onChanged: (val) {
+                            final count = int.tryParse(val) ?? 0;
+                            setModalState(() {
+                              calculatedIncome = count * pricePerUnit;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: '0',
+                            suffixText: job['unit'] ?? 'Pcs',
+                            suffixStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF475467),
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: (int.tryParse(countController.text) ?? 0) > available
+                                    ? const Color(0xFFD92D20)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: (int.tryParse(countController.text) ?? 0) > available
+                                    ? const Color(0xFFD92D20)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: (int.tryParse(countController.text) ?? 0) > available
+                                    ? const Color(0xFFD92D20)
+                                    : AppColor.primary,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if ((int.tryParse(countController.text) ?? 0) > available)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, left: 2),
+                            child: Text(
+                              'Jumlah melebihi kuota yang tersedia ($available)',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFFD92D20),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFEAECF0)),
+                        color: const Color(0xFFE8F6F4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Masukkan Jumlah Pekerjaan',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppColor.black,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFD0D5DD)),
-                            ),
-                            child: TextField(
-                              controller: countController,
-                              keyboardType: TextInputType.number,
-                              onChanged: (val) {
-                                final count = int.tryParse(val) ?? 0;
-                                setModalState(() {
-                                  calculatedIncome =
-                                      count * (_jobData['pricePerUnit'] as int);
-                                });
-                              },
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColor.black,
-                              ),
-                              decoration: const InputDecoration(
-                                hintText: 'Jumlah pekerjaan',
-                                hintStyle: TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF98A2B3),
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
                           const Text(
                             'Perkiraan Pendapatan',
                             style: TextStyle(
@@ -404,7 +681,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Rp ${_formatNumber(calculatedIncome)}',
+                            AppFormatter.rupiah(calculatedIncome),
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -422,11 +699,8 @@ class _BerandaScreenState extends State<BerandaScreen> {
                           final count = int.tryParse(countController.text) ?? 0;
                           Navigator.pop(context);
 
-                          if (count <= 0 || count > _jobData['available']) {
-                            setState(() {
-                              _showFailBanner = true;
-                              _showSuccessBanner = false;
-                            });
+                          if (count <= 0 || count > available) {
+                            _showNotificationBanner(success: false);
                             return;
                           }
 
@@ -436,42 +710,33 @@ class _BerandaScreenState extends State<BerandaScreen> {
 
                           try {
                             final res = await KonveksiService().takeOrder(
-                              idProyek: _jobData['idproyek']?.toString() ?? '',
+                              idProyek: job['idproyek']?.toString() ?? '',
                               idPegawai: empId,
                               nama: empName,
                               kerja: empRole,
                               items: [
                                 {
-                                  'iditem': _jobData['iditem'] ?? '',
-                                  'nama': _jobData['name'] ?? '',
-                                  'barcode': _jobData['barcode'] ?? '',
+                                  'idproyek': job['idproyek']?.toString() ?? '',
+                                  'barcode': job['barcode'] ?? '',
+                                  'iditem': job['iditem'] ?? '',
+                                  'nama': job['name'] ?? '',
                                   'jumlah': count,
-                                  'satuan': _jobData['unit'] ?? 'Pcs',
-                                  'harga': _jobData['pricePerUnit'] ?? 0,
+                                  'satuan': job['unit'] ?? 'Pcs',
+                                  'harga': pricePerUnit,
                                 }
                               ],
                             );
 
                             if (!mounted) return;
                             if (res.success) {
-                              setState(() {
-                                _showSuccessBanner = true;
-                                _showFailBanner = false;
-                                _hasAvailableJob = false;
-                              });
+                              _showNotificationBanner(success: true);
+                              _fetchEarningsAndJobs();
                             } else {
-                              setState(() {
-                                _showFailBanner = true;
-                                _showSuccessBanner = false;
-                              });
+                              _showNotificationBanner(success: false);
                             }
                           } catch (_) {
                             if (!mounted) return;
-                            setState(() {
-                              _showSuccessBanner = true;
-                              _showFailBanner = false;
-                              _hasAvailableJob = false;
-                            });
+                            _showNotificationBanner(success: false);
                           }
                         },
                         style: ElevatedButton.styleFrom(
@@ -502,127 +767,137 @@ class _BerandaScreenState extends State<BerandaScreen> {
     );
   }
 
-  String _formatNumber(int number) {
-    return number.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]}.',
-        );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: _isLoading
-          ? const SafeArea(child: SingleChildScrollView(child: BerandaSkeleton()))
-          : Stack(
-              children: [
-                Container(
-                  height: 240,
-                  decoration: const BoxDecoration(
-                    color: AppColor.primary,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          SystemNavigator.pop();
+        },
+        child: Scaffold(
+          backgroundColor: AppColor.primary,
+          body: _isLoading
+              ? const SingleChildScrollView(child: BerandaSkeleton())
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        color: AppColor.primary,
+                        child: SafeArea(
+                          bottom: false,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 280),
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SizeTransition(
+                          sizeFactor: animation,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: _showSuccessBanner
+                        ? Container(
+                            key: const ValueKey('success_banner'),
+                            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF3),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFA6F4C5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle_outline,
+                                  size: 18,
+                                  color: Color(0xFF027A48),
+                                ),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Text(
+                                    'Pekerjaan Berhasil Ditambahkan',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF027A48),
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: Color(0xFF027A48),
+                                  ),
+                                  onPressed: _hideNotificationBanner,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            ),
+                          )
+                        : _showFailBanner
+                            ? Container(
+                                key: const ValueKey('fail_banner'),
+                                margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEE4E2),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFFECDCA)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.notifications_active_outlined,
+                                      size: 18,
+                                      color: Color(0xFFD92D20),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Expanded(
+                                      child: Text(
+                                        'Pekerjaan Gagal Ditambahkan',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFFD92D20),
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.close,
+                                        size: 16,
+                                        color: Color(0xFFD92D20),
+                                      ),
+                                      onPressed: _hideNotificationBanner,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : const SizedBox.shrink(),
                   ),
-                ),
-
-          SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_showSuccessBanner)
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF3),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFA6F4C5)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.check_circle_outline,
-                            size: 18,
-                            color: Color(0xFF027A48),
-                          ),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Pekerjaan Berhasil Ditambahkan',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF027A48),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.close,
-                              size: 16,
-                              color: Color(0xFF027A48),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _showSuccessBanner = false;
-                              });
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (_showFailBanner)
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEE4E2),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFFECDCA)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.notifications_active_outlined,
-                            size: 18,
-                            color: Color(0xFFD92D20),
-                          ),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Pekerjaan Gagal Ditambahkan',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFD92D20),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.close,
-                              size: 16,
-                              color: Color(0xFFD92D20),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _showFailBanner = false;
-                              });
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                     child: Row(
@@ -632,13 +907,26 @@ class _BerandaScreenState extends State<BerandaScreen> {
                           height: 44,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            image: const DecorationImage(
-                              image: AssetImage('assets/hero-image.png'),
+                            color: Colors.white,
+                            border: Border.all(color: const Color(0xD9FFFFFF), width: 2),
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/profile.png',
+                              width: 44,
+                              height: 44,
                               fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const Center(
+                                child: Icon(
+                                  Icons.person_rounded,
+                                  size: 26,
+                                  color: AppColor.primary,
+                                ),
+                              ),
                             ),
                           ),
                         ),
+
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -685,47 +973,6 @@ class _BerandaScreenState extends State<BerandaScreen> {
                             ],
                           ),
                         ),
-                        Stack(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.notifications_none_rounded,
-                                color: AppColor.black,
-                                size: 20,
-                              ),
-                            ),
-                            Positioned(
-                              top: 2,
-                              right: 2,
-                              child: Container(
-                                padding: const EdgeInsets.all(3),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFF04438),
-                                  shape: BoxShape.circle,
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 14,
-                                  minHeight: 14,
-                                ),
-                                child: const Text(
-                                  '3',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                       ],
                     ),
                   ),
@@ -759,15 +1006,9 @@ class _BerandaScreenState extends State<BerandaScreen> {
                               ),
                               Row(
                                 children: [
-                                  _buildDropdownPill(
-                                    title: _selectedYear,
-                                    onTap: () {},
-                                  ),
+                                  _buildDropdownYearPill(),
                                   const SizedBox(width: 8),
-                                  _buildDropdownPill(
-                                    title: _selectedMonth,
-                                    onTap: () {},
-                                  ),
+                                  _buildDropdownMonthPill(),
                                 ],
                               ),
                             ],
@@ -847,7 +1088,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Rp ${_formatNumber(_totalEarnings)}',
+                                      AppFormatter.rupiah(_totalEarnings),
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
@@ -863,11 +1104,30 @@ class _BerandaScreenState extends State<BerandaScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      height: 44,
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    height: 44,
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
@@ -961,16 +1221,25 @@ class _BerandaScreenState extends State<BerandaScreen> {
                   const SizedBox(height: 14),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _hasAvailableJob
-                        ? _buildJobCard()
+                    child: _currentJobs.isNotEmpty
+                        ? Column(
+                            children: _currentJobs
+                                .map(
+                                  (job) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _buildJobCard(job),
+                                  ),
+                                )
+                                .toList(),
+                          )
                         : _buildEmptyState(),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
@@ -1014,256 +1283,355 @@ class _BerandaScreenState extends State<BerandaScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
-  Widget _buildDropdownPill({
-    required String title,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildDropdownYearPill() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF475467),
-            ),
-          ),
-          const SizedBox(width: 4),
-          const Icon(
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedYear,
+          menuMaxHeight: 240,
+          borderRadius: BorderRadius.circular(10),
+          icon: const Icon(
             Icons.keyboard_arrow_down,
             size: 14,
             color: Color(0xFF64748B),
           ),
-        ],
+          isDense: true,
+          items: _years.map((y) {
+            return DropdownMenuItem<String>(
+              value: y,
+              child: Text(
+                y,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF475467),
+                ),
+              ),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null && val != _selectedYear) {
+              setState(() => _selectedYear = val);
+              _loadFromCacheIfExists();
+              _fetchEarningsAndJobs();
+            }
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildJobCard() {
+  Widget _buildDropdownMonthPill() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEAECF0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  _jobData['code'],
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF475467),
-                  ),
-                ),
-              ),
-              Text(
-                _jobData['date'],
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedMonth,
+          menuMaxHeight: 240,
+          borderRadius: BorderRadius.circular(10),
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            size: 14,
+            color: Color(0xFF64748B),
+          ),
+          isDense: true,
+          items: AppFormatter.months.map((m) {
+            return DropdownMenuItem<String>(
+              value: m,
+              child: Text(
+                m,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: Color(0xFF98A2B3),
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF475467),
                 ),
+              ),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null && val != _selectedMonth) {
+              setState(() => _selectedMonth = val);
+              _loadFromCacheIfExists();
+              _fetchEarningsAndJobs();
+            }
+          },
+
+        ),
+      ),
+    );
+
+  }
+
+  Widget _buildJobCard(Map<String, dynamic> job) {
+    final int available = (job['available'] as num?)?.toInt() ?? 0;
+    final int pricePerUnit = (job['pricePerUnit'] as num?)?.toInt() ?? 0;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            AppRoutes.detailPekerjaan,
+            arguments: {
+              'idproyek': job['idproyek'],
+              'code': job['code'],
+              'date': job['date'],
+              'name': job['name'],
+              'taken': job['available'],
+              'priority': job['priority'],
+              'unit': job['unit'],
+              'pricePerUnit': job['pricePerUnit'],
+              'productCode': job['barcode'],
+              'barcode': job['barcode'],
+              'iditem': job['iditem'],
+              'pemesan': job['pemesan'],
+              'jenis': job['jenis'],
+              'koordinator': job['koordinator'],
+              'itemCount': job['itemCount'],
+              'isProduct': job['isProduct'],
+              'photo': job['photo'] ?? '',
+              'photo1': job['photo1'] ?? '',
+              'isLaporan': false,
+            },
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFEAECF0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 10,
+                offset: Offset(0, 4),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            _jobData['name'],
-            style: const TextStyle(
-              fontSize: 14.5,
-              fontWeight: FontWeight.w700,
-              color: AppColor.black,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Jumlah Pekerjaan Tersedia',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${_jobData['available']}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColor.black,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Satuan',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _jobData['unit'],
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColor.black,
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Prioritas Proyek',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF3),
-                      borderRadius: BorderRadius.circular(10),
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF12B76A),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _jobData['priority'],
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF027A48),
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      job['code'] ?? '-',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475467),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Upah Satuan',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
                   Text(
-                    'Rp ${_formatNumber(_jobData['pricePerUnit'])}',
+                    job['date'] ?? '-',
                     style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColor.black,
+                      fontSize: 11,
+                      color: Color(0xFF98A2B3),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F6F4),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              children: [
-                const Text(
-                  'Perkiraan Pendapatan',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF64748B),
-                  ),
+              const SizedBox(height: 12),
+              Text(
+                job['name'] ?? '-',
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColor.black,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'Rp ${_formatNumber(_jobData['available'] * (_jobData['pricePerUnit'] as int))}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColor.black,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Jumlah Pekerjaan Tersedia',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$available',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColor.black,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Satuan',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        job['unit'] ?? 'Pcs',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColor.black,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: _openAmbilPekerjaanModal,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColor.primaryDark,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedTabIndex == 0
+                            ? 'Prioritas Proyek'
+                            : 'Prioritas Produk',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF3),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF12B76A),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              job['priority'] ?? 'Sedang',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF027A48),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Upah Satuan',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        AppFormatter.rupiah(pricePerUnit),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColor.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F6F4),
                   borderRadius: BorderRadius.circular(8),
                 ),
-              ),
-              child: const Text(
-                'Ambil Pekerjaan',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                child: Column(
+                  children: [
+                    const Text(
+                      'Perkiraan Pendapatan',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      AppFormatter.rupiah(available * pricePerUnit),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColor.black,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: () => _openAmbilPekerjaanModal(job),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColor.primaryDark,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Ambil Pekerjaan',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -24,16 +24,29 @@ class DioClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          if (!options.headers.containsKey('X-Customer-ID')) {
+          options.baseUrl = ApiEndpoints.baseUrl;
+          final existingCustId = options.headers['X-Customer-ID'];
+          if (existingCustId == null ||
+              existingCustId.toString().isEmpty ||
+              existingCustId.toString() == '0') {
             try {
               final custId = SessionManager.customerId;
-              if (custId != null && custId.isNotEmpty) {
+              if (custId != null && custId.isNotEmpty && custId != '0') {
                 options.headers['X-Customer-ID'] = custId;
               }
             } catch (_) {}
           }
 
           if (kDebugMode) {
+            if (options.path.contains('/konveksi') &&
+                (!options.headers.containsKey('X-Customer-ID') ||
+                    options.headers['X-Customer-ID'] == null ||
+                    options.headers['X-Customer-ID'].toString().isEmpty ||
+                    options.headers['X-Customer-ID'].toString() == '0')) {
+              debugPrint('⚠️ [DIO WARNING] Endpoint "${options.path}" dipanggil tanpa header X-Customer-ID yang valid! '
+                  'SessionManager.customerId = "${SessionManager.customerId}". '
+                  'Pastikan pengguna sudah login sebagai Customer.');
+            }
             debugPrint('--> [DIO] ${options.method} ${options.uri}');
             debugPrint('--> [DIO] Headers: ${options.headers}');
             if (options.data != null) {

@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../constant/app_color.dart';
+import '../core/cache/app_cache_manager.dart';
 import '../core/network/api_exception.dart';
 import '../core/session/session_manager.dart';
 import '../routes/app_routes.dart';
 import '../services/auth_service.dart';
 import '../widgets/skeleton.dart';
+
 
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
@@ -16,7 +19,29 @@ class ProfilScreen extends StatefulWidget {
 class _ProfilScreenState extends State<ProfilScreen> {
   final int _currentNavIndex = 3;
   bool _showSuccessBanner = false;
+  Timer? _bannerTimer;
   bool _isLoading = true;
+
+  void _showNotificationBanner() {
+    _bannerTimer?.cancel();
+    setState(() {
+      _showSuccessBanner = true;
+    });
+    _bannerTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _showSuccessBanner = false;
+        });
+      }
+    });
+  }
+
+  void _hideNotificationBanner() {
+    _bannerTimer?.cancel();
+    setState(() {
+      _showSuccessBanner = false;
+    });
+  }
 
   @override
   void initState() {
@@ -24,6 +49,12 @@ class _ProfilScreenState extends State<ProfilScreen> {
     Future.delayed(const Duration(milliseconds: 350), () {
       if (mounted) setState(() => _isLoading = false);
     });
+  }
+
+  @override
+  void dispose() {
+    _bannerTimer?.cancel();
+    super.dispose();
   }
 
   void _openUbahKataSandiDialog() {
@@ -291,9 +322,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
                                   if (!context.mounted) return;
                                   Navigator.pop(context);
-                                  setState(() {
-                                    _showSuccessBanner = true;
-                                  });
+                                  _showNotificationBanner();
                                 } on ApiException catch (e) {
                                   setDialogState(() {
                                     dialogError = e.message;
@@ -418,8 +447,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         height: 40,
                         child: ElevatedButton(
                           onPressed: () async {
+                            await AppCacheManager.clearAll();
                             await SessionManager.logoutEmployee();
                             if (!context.mounted) return;
+
                             Navigator.pop(context);
                             Navigator.pushNamedAndRemoveUntil(
                               context,
@@ -495,53 +526,63 @@ class _ProfilScreenState extends State<ProfilScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (_showSuccessBanner)
-                Container(
-                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFECFDF3),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFA6F4C5)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.notifications_active_outlined,
-                        size: 18,
-                        color: Color(0xFF027A48),
-                      ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Text(
-                          'Ubah Kata Sandi Berhasil',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF027A48),
-                          ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SizeTransition(
+                      sizeFactor: animation,
+                      child: child,
+                    ),
+                  );
+                },
+                child: _showSuccessBanner
+                    ? Container(
+                        key: const ValueKey('profil_success_banner'),
+                        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.close,
-                          size: 16,
-                          color: Color(0xFF027A48),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF3),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFA6F4C5)),
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _showSuccessBanner = false;
-                          });
-                        },
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.notifications_active_outlined,
+                              size: 18,
+                              color: Color(0xFF027A48),
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'Ubah Kata Sandi Berhasil',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF027A48),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                size: 16,
+                                color: Color(0xFF027A48),
+                              ),
+                              onPressed: _hideNotificationBanner,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
 
               const SizedBox(height: 24),
 
@@ -550,19 +591,31 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   width: 76,
                   height: 76,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD1FADF),
+                    color: const Color(0xFFF1F5F9),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFA6F4C5),
+                      color: const Color(0xFFCBD5E1),
                       width: 2,
                     ),
                   ),
-                  child: CustomPaint(
-                    size: const Size(76, 76),
-                    painter: _AvatarPainter(),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/profile.png',
+                      width: 76,
+                      height: 76,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const Center(
+                        child: Icon(
+                          Icons.person_rounded,
+                          size: 46,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
+
               const SizedBox(height: 12),
 
               Text(
@@ -826,58 +879,5 @@ class _ProfilScreenState extends State<ProfilScreen> {
       ),
     );
   }
-}
-
-class _AvatarPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double cx = size.width / 2;
-    final double cy = size.height / 2;
-
-    final shirtPaint = Paint()
-      ..color = const Color(0xFF0F4C47)
-      ..style = PaintingStyle.fill;
-
-    final bodyPath = Path()
-      ..moveTo(cx - 24, cy + 34)
-      ..quadraticBezierTo(cx - 24, cy + 12, cx - 12, cy + 10)
-      ..lineTo(cx + 12, cy + 10)
-      ..quadraticBezierTo(cx + 24, cy + 12, cx + 24, cy + 34)
-      ..close();
-    canvas.drawPath(bodyPath, shirtPaint);
-
-    final collarPaint = Paint()
-      ..color = const Color(0xFFFDB022)
-      ..style = PaintingStyle.fill;
-    final collarPath = Path()
-      ..moveTo(cx - 7, cy + 10)
-      ..lineTo(cx, cy + 20)
-      ..lineTo(cx + 7, cy + 10)
-      ..close();
-    canvas.drawPath(collarPath, collarPaint);
-
-    final skinPaint = Paint()
-      ..color = const Color(0xFFFFD8A8)
-      ..style = PaintingStyle.fill;
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy - 6), width: 22, height: 26),
-      skinPaint,
-    );
-
-    final hairPaint = Paint()
-      ..color = const Color(0xFF1E293B)
-      ..style = PaintingStyle.fill;
-    final hairPath = Path()
-      ..moveTo(cx - 11, cy - 6)
-      ..quadraticBezierTo(cx - 12, cy - 20, cx, cy - 20)
-      ..quadraticBezierTo(cx + 12, cy - 20, cx + 11, cy - 6)
-      ..quadraticBezierTo(cx + 8, cy - 14, cx, cy - 15)
-      ..quadraticBezierTo(cx - 8, cy - 14, cx - 11, cy - 6)
-      ..close();
-    canvas.drawPath(hairPath, hairPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 

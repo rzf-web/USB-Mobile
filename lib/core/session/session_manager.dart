@@ -8,6 +8,7 @@ class SessionManager {
   static const String _keyEmployeeName = 'employee_name';
   static const String _keyEmployeeRole = 'employee_role';
   static const String _keyCompanyName = 'company_name';
+  static const String _keyBaseUrl = 'custom_base_url';
 
   static SharedPreferences? _prefs;
 
@@ -71,6 +72,14 @@ class SessionManager {
     await prefs.remove(_keyEmployeeName);
     await prefs.remove(_keyEmployeeRole);
     await prefs.remove(_keyCompanyName);
+  }
+
+  static String? get customBaseUrl {
+    try {
+      return _safePrefs.getString(_keyBaseUrl);
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<void> clearAll() async {

@@ -25,9 +25,17 @@ class EmployeeLoginResponse {
       );
     }
 
-    final data = (json['data'] is Map<String, dynamic>)
-        ? json['data'] as Map<String, dynamic>
-        : json;
+    Map<String, dynamic> data = {};
+    if (json['data'] is Map<String, dynamic>) {
+      data = json['data'] as Map<String, dynamic>;
+    } else if (json['data'] is List && (json['data'] as List).isNotEmpty) {
+      final first = (json['data'] as List).first;
+      if (first is Map<String, dynamic>) {
+        data = first;
+      }
+    } else {
+      data = json;
+    }
 
     final employeeId = data['idpegawai']?.toString() ??
         data['id_pegawai']?.toString() ??
@@ -43,24 +51,29 @@ class EmployeeLoginResponse {
         json['username']?.toString() ??
         defaultUsername;
 
-    final role = data['kerja']?.toString() ??
+    final role = data['employePosition']?.toString() ??
+        data['employeePosition']?.toString() ??
+        data['kerja']?.toString() ??
         data['pekerjaan']?.toString() ??
         data['role']?.toString() ??
         data['jabatan']?.toString() ??
         json['kerja']?.toString() ??
         json['role']?.toString();
 
-    final companyName = data['nama_usaha']?.toString() ??
+    final companyName = data['companyName']?.toString() ??
+        data['nama_usaha']?.toString() ??
         data['perusahaan']?.toString() ??
         data['company']?.toString() ??
         data['namaUsaha']?.toString() ??
+        json['companyName']?.toString() ??
         json['nama_usaha']?.toString() ??
         json['perusahaan']?.toString();
 
-    final isSuccess = json['status'] == true ||
+    final hasStatusSuccess = json['status'] == true ||
         json['status'] == 200 ||
-        json['success'] == true ||
-        (employeeId != null && employeeId.isNotEmpty);
+        json['success'] == true;
+
+    final isSuccess = hasStatusSuccess && (employeeId != null && employeeId.isNotEmpty);
 
     final message = json['message']?.toString() ??
         json['msg']?.toString() ??

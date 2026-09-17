@@ -5,6 +5,8 @@ import '../models/konveksi/employee_earnings_model.dart';
 import '../routes/app_routes.dart';
 import '../services/konveksi_service.dart';
 import '../widgets/skeleton.dart';
+import '../core/utils/app_formatter.dart';
+
 
 class LaporanScreen extends StatefulWidget {
   const LaporanScreen({super.key});
@@ -16,19 +18,48 @@ class LaporanScreen extends StatefulWidget {
 class _LaporanScreenState extends State<LaporanScreen> {
   int _selectedTab = 0;
   final int _currentNavIndex = 2;
-
-  String _selectedYear = '2026';
-  String _selectedMonth = 'September';
+  late String _selectedYear;
+  late String _selectedMonth;
+  int _fetchEarningsSeq = 0;
   bool _isLoading = true;
   EmployeeEarningsResponse? _earningsResponse;
 
   @override
   void initState() {
     super.initState();
-    _fetchEarnings();
+    final now = DateTime.now();
+    _selectedYear = now.year.toString();
+    _selectedMonth = AppFormatter.monthName(now.month);
+    _fetchEarnings(isInitial: true);
   }
 
-  Future<void> _fetchEarnings() async {
+  List<String> get _years => AppFormatter.getYearList(
+        selectedYear: _selectedYear,
+      );
+
+  void _loadFromCacheIfExists() {
+    final empId = SessionManager.employeeId;
+    if (empId == null || empId.isEmpty) return;
+
+    final (startDate, endDate) =
+        AppFormatter.dateRangeForMonth(_selectedYear, _selectedMonth);
+    final cached = KonveksiService().getCachedEmployeeEarnings(
+      idPegawai: empId,
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    if (cached != null) {
+      if (mounted) {
+        setState(() {
+          _earningsResponse = cached;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchEarnings({bool isInitial = false}) async {
     final empId = SessionManager.employeeId;
     if (empId == null || empId.isEmpty) {
       await Future.delayed(const Duration(milliseconds: 350));
@@ -36,31 +67,37 @@ class _LaporanScreenState extends State<LaporanScreen> {
       return;
     }
 
+    // Tampilkan data cache lokal terlebih dahulu (0 ms)
+    _loadFromCacheIfExists();
+
+    final currentSeq = ++_fetchEarningsSeq;
     try {
+      final (startDate, endDate) =
+          AppFormatter.dateRangeForMonth(_selectedYear, _selectedMonth);
       final res = await KonveksiService().getEmployeeEarnings(
         idPegawai: empId,
+        startDate: startDate,
+        endDate: endDate,
       );
-      if (!mounted) return;
+      if (!mounted || currentSeq != _fetchEarningsSeq) return;
       setState(() {
         _earningsResponse = res;
+        _isLoading = false;
       });
     } catch (_) {
     } finally {
-      if (mounted) {
+      if (mounted && isInitial) {
         setState(() => _isLoading = false);
       }
     }
   }
 
-  void _onTabChanged(int index) async {
+
+  void _onTabChanged(int index) {
     if (_selectedTab == index) return;
     setState(() {
       _selectedTab = index;
-      _isLoading = true;
     });
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
   }
 
   int get _completedProjects {
@@ -99,15 +136,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
         'isProduct': false,
         'type': 'Proyek',
         'status': isPaid ? 'Dibayar' : 'Belum Dibayar',
+        'photo': item.photo,
+        'photo1': item.photo1,
       };
     }).toList();
-  }
-
-  String _formatNumber(int number) {
-    return number.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]}.',
-        );
   }
 
   @override
@@ -193,13 +225,15 @@ class _LaporanScreenState extends State<LaporanScreen> {
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
                                 value: _selectedYear,
+                                menuMaxHeight: 240,
+                                borderRadius: BorderRadius.circular(10),
                                 icon: const Icon(
                                   Icons.keyboard_arrow_down,
                                   size: 14,
                                   color: Color(0xFF64748B),
                                 ),
                                 isDense: true,
-                                items: ['2025', '2026', '2027'].map((y) {
+                                items: _years.map((y) {
                                   return DropdownMenuItem(
                                     value: y,
                                     child: Text(
@@ -213,8 +247,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
                                   );
                                 }).toList(),
                                 onChanged: (val) {
-                                  if (val != null) {
+                                  if (val != null && val != _selectedYear) {
                                     setState(() => _selectedYear = val);
+                                    _loadFromCacheIfExists();
+                                    _fetchEarnings();
                                   }
                                 },
                               ),
@@ -232,26 +268,15 @@ class _LaporanScreenState extends State<LaporanScreen> {
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
                                 value: _selectedMonth,
+                                menuMaxHeight: 240,
+                                borderRadius: BorderRadius.circular(10),
                                 icon: const Icon(
                                   Icons.keyboard_arrow_down,
                                   size: 14,
                                   color: Color(0xFF64748B),
                                 ),
                                 isDense: true,
-                                items: [
-                                  'Januari',
-                                  'Februari',
-                                  'Maret',
-                                  'April',
-                                  'Mei',
-                                  'Juni',
-                                  'Juli',
-                                  'Agustus',
-                                  'September',
-                                  'Oktober',
-                                  'November',
-                                  'Desember'
-                                ].map((m) {
+                                items: AppFormatter.months.map((m) {
                                   return DropdownMenuItem(
                                     value: m,
                                     child: Text(
@@ -265,8 +290,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
                                   );
                                 }).toList(),
                                 onChanged: (val) {
-                                  if (val != null) {
+                                  if (val != null && val != _selectedMonth) {
                                     setState(() => _selectedMonth = val);
+                                    _loadFromCacheIfExists();
+                                    _fetchEarnings();
                                   }
                                 },
                               ),
@@ -363,7 +390,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Rp ${_formatNumber(_paidAmount)}',
+                                AppFormatter.rupiah(_paidAmount),
                                 style: const TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
@@ -413,7 +440,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Rp ${_formatNumber(_unpaidAmount)}',
+                                AppFormatter.rupiah(_unpaidAmount),
                                 style: const TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
@@ -775,8 +802,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
             const SizedBox(height: 14),
             Text(
               _selectedTab == 0
-                  ? 'Tidak Ada Pekerjaan Dibayar\nBulan ini'
-                  : 'Tidak Ada Pekerjaan Belum Dibayar\nBulan ini',
+                  ? 'Tidak Ada Pekerjaan Dibayar\nBulan $_selectedMonth $_selectedYear'
+                  : 'Tidak Ada Pekerjaan Belum Dibayar\nBulan $_selectedMonth $_selectedYear',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 12.5,

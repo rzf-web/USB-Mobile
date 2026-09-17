@@ -9,6 +9,8 @@ class EarningItem {
   final num hargaSatuan;
   final num totalUpah;
   final String status;
+  final String photo;
+  final String photo1;
 
   EarningItem({
     required this.idGaji,
@@ -21,24 +23,28 @@ class EarningItem {
     required this.hargaSatuan,
     required this.totalUpah,
     required this.status,
+    this.photo = '',
+    this.photo1 = '',
   });
 
   factory EarningItem.fromJson(Map<String, dynamic> json) {
-    final qty = int.tryParse(json['jumlah']?.toString() ?? json['finish']?.toString() ?? '0') ?? 0;
-    final price = num.tryParse(json['harga']?.toString() ?? json['upah']?.toString() ?? '0') ?? 0;
-    final total = num.tryParse(json['total']?.toString() ?? '0') ?? (qty * price);
+    final qty = num.tryParse(json['qty']?.toString() ?? json['jumlah']?.toString() ?? json['finish']?.toString() ?? '0') ?? 0;
+    final price = num.tryParse(json['price']?.toString() ?? json['harga']?.toString() ?? json['upah']?.toString() ?? '0') ?? 0;
+    final total = num.tryParse(json['earning']?.toString() ?? json['total']?.toString() ?? '0') ?? (qty * price);
 
     return EarningItem(
-      idGaji: json['idgaji']?.toString() ?? json['id_gaji']?.toString() ?? '',
+      idGaji: json['id']?.toString() ?? json['idgaji']?.toString() ?? json['id_gaji']?.toString() ?? json['paymentId']?.toString() ?? '',
       idProyek: json['idproyek']?.toString() ?? json['id_proyek']?.toString() ?? '',
-      namaProyek: json['nama_proyek']?.toString() ?? json['nama']?.toString() ?? 'Pekerjaan',
+      namaProyek: json['type']?.toString() ?? json['nama_proyek']?.toString() ?? json['nama']?.toString() ?? 'Pekerjaan',
       keterangan: json['ket']?.toString() ?? json['keterangan']?.toString() ?? '',
-      tanggal: json['tanggal']?.toString() ?? json['date']?.toString() ?? '',
-      jumlah: qty,
+      tanggal: json['date']?.toString() ?? json['tanggal']?.toString() ?? '',
+      jumlah: qty.toInt(),
       satuan: json['satuan']?.toString() ?? 'PCS',
       hargaSatuan: price,
       totalUpah: total,
       status: json['status']?.toString() ?? 'Belum Lunas',
+      photo: json['photo']?.toString() ?? '',
+      photo1: json['photo1']?.toString() ?? '',
     );
   }
 }
@@ -65,19 +71,16 @@ class EmployeeEarningsResponse {
       return EmployeeEarningsResponse(success: false);
     }
 
-    final data = json['data'] ?? json;
     List<EarningItem> list = [];
+    final rawDetail = json['detail'] ??
+        (json['data'] is Map<String, dynamic> ? json['data']['detail'] ?? json['data']['items'] ?? json['data']['list'] : null) ??
+        json['data'] ??
+        json['items'] ??
+        json['rows'] ??
+        json['list'];
 
-    if (data is Map<String, dynamic>) {
-      final rawList = data['items'] ?? data['rows'] ?? data['list'];
-      if (rawList is List) {
-        list = rawList
-            .whereType<Map<String, dynamic>>()
-            .map((e) => EarningItem.fromJson(e))
-            .toList();
-      }
-    } else if (data is List) {
-      list = data
+    if (rawDetail is List) {
+      list = rawDetail
           .whereType<Map<String, dynamic>>()
           .map((e) => EarningItem.fromJson(e))
           .toList();
@@ -87,7 +90,18 @@ class EmployeeEarningsResponse {
     num unpaid = 0;
     num paid = 0;
 
-    if (data is Map<String, dynamic>) {
+    final summary = json['summary'] is Map<String, dynamic>
+        ? json['summary'] as Map<String, dynamic>
+        : (json['data'] is Map<String, dynamic> && json['data']['summary'] is Map<String, dynamic>
+            ? json['data']['summary'] as Map<String, dynamic>
+            : null);
+
+    if (summary != null) {
+      total = num.tryParse(summary['totalEarnings']?.toString() ?? summary['total_earnings']?.toString() ?? '0') ?? 0;
+      paid = num.tryParse(summary['amountPaid']?.toString() ?? summary['amount_paid']?.toString() ?? '0') ?? 0;
+      unpaid = num.tryParse(summary['amountDue']?.toString() ?? summary['amount_due']?.toString() ?? '0') ?? 0;
+    } else if (json['data'] is Map<String, dynamic>) {
+      final data = json['data'] as Map<String, dynamic>;
       total = num.tryParse(data['total_pendapatan']?.toString() ?? data['total']?.toString() ?? '0') ?? 0;
       unpaid = num.tryParse(data['belum_dibayar']?.toString() ?? data['unpaid']?.toString() ?? '0') ?? 0;
       paid = num.tryParse(data['sudah_dibayar']?.toString() ?? data['paid']?.toString() ?? '0') ?? 0;
@@ -104,8 +118,10 @@ class EmployeeEarningsResponse {
       }
     }
 
+    final isSuccess = json['status'] == true || json['status'] == 200 || json['success'] == true;
+
     return EmployeeEarningsResponse(
-      success: true,
+      success: isSuccess,
       totalPendapatan: total,
       belumDibayar: unpaid,
       sudahDibayar: paid,

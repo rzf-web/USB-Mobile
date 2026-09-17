@@ -23,37 +23,72 @@ class CustomerLoginResponse {
       );
     }
 
-    final data = (json['data'] is Map<String, dynamic>)
-        ? json['data'] as Map<String, dynamic>
-        : json;
+    Map<String, dynamic> data = {};
+    if (json['data'] is Map<String, dynamic>) {
+      data = json['data'] as Map<String, dynamic>;
+    } else if (json['data'] is List && (json['data'] as List).isNotEmpty) {
+      final first = (json['data'] as List).first;
+      if (first is Map<String, dynamic>) {
+        data = first;
+      }
+    } else {
+      data = json;
+    }
 
-    final customerId = data['customerId']?.toString() ??
-        data['customer_id']?.toString() ??
-        data['id_customer']?.toString() ??
-        data['idCustomer']?.toString() ??
-        data['id']?.toString() ??
-        json['customerId']?.toString() ??
-        json['customer_id']?.toString() ??
-        json['id_customer']?.toString();
+    String? customerId;
+    if (json['data'] is int || json['data'] is String) {
+      customerId = json['data'].toString();
+    } else {
+      customerId = data['customerId']?.toString() ??
+          data['customer_id']?.toString() ??
+          data['id_customer']?.toString() ??
+          data['idCustomer']?.toString() ??
+          data['id']?.toString() ??
+          data['id_user']?.toString() ??
+          data['idUser']?.toString() ??
+          data['user_id']?.toString() ??
+          data['id_member']?.toString() ??
+          data['member_id']?.toString() ??
+          data['cust_id']?.toString() ??
+          data['kode_customer']?.toString() ??
+          json['customerId']?.toString() ??
+          json['customer_id']?.toString() ??
+          json['id_customer']?.toString() ??
+          json['id']?.toString();
+    }
 
     final tenantDb = data['tenantDb']?.toString() ??
+        data['tenant_db']?.toString() ??
         data['db_name']?.toString() ??
+        data['dbname']?.toString() ??
         data['database']?.toString() ??
+        data['db']?.toString() ??
         json['tenantDb']?.toString() ??
-        json['db_name']?.toString();
+        json['tenant_db']?.toString() ??
+        json['db_name']?.toString() ??
+        json['database']?.toString();
 
     final email = data['email']?.toString() ??
         json['email']?.toString() ??
         defaultEmail;
 
-    final isSuccess = json['status'] == true ||
+    final hasStatusSuccess = json['status'] == true ||
         json['status'] == 200 ||
-        json['success'] == true ||
-        (customerId != null && customerId.isNotEmpty);
+        json['success'] == true;
+
+    final hasValidCustomerId = customerId != null &&
+        customerId.isNotEmpty &&
+        customerId.trim() != '0';
+
+    final isSuccess = hasStatusSuccess && hasValidCustomerId;
 
     final message = json['message']?.toString() ??
         json['msg']?.toString() ??
-        (isSuccess ? 'Login berhasil' : 'Login gagal');
+        (isSuccess
+            ? 'Login berhasil'
+            : (hasStatusSuccess && !hasValidCustomerId
+                ? 'Login berhasil tetapi ID Customer tidak ditemukan dalam respon server.'
+                : 'Login gagal'));
 
     return CustomerLoginResponse(
       success: isSuccess,

@@ -86,14 +86,5 @@ class AuthService {
     }
     return true;
   }
-
-  Future<bool> pingServer() async {
-    try {
-      final response = await _client.get(ApiEndpoints.ping);
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
 }
 

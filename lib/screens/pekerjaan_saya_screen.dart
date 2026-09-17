@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../constant/app_color.dart';
 import '../core/session/session_manager.dart';
 import '../routes/app_routes.dart';
 import '../services/konveksi_service.dart';
 import '../widgets/skeleton.dart';
+import '../core/utils/app_formatter.dart';
+
 
 class PekerjaanSayaScreen extends StatefulWidget {
   const PekerjaanSayaScreen({super.key});
@@ -19,33 +22,82 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
 
   String? _activeFilter;
   bool _showSuccessBanner = false;
+  Timer? _bannerTimer;
 
   final List<Map<String, dynamic>> _projectJobs = [];
   final List<Map<String, dynamic>> _productJobs = [];
 
+  void _showNotificationBanner() {
+    _bannerTimer?.cancel();
+    setState(() {
+      _showSuccessBanner = true;
+    });
+    _bannerTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _showSuccessBanner = false;
+        });
+      }
+    });
+  }
+
+  void _hideNotificationBanner() {
+    _bannerTimer?.cancel();
+    setState(() {
+      _showSuccessBanner = false;
+    });
+  }
+
+  late String _selectedYear;
+  late String _selectedMonth;
+
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedYear = now.year.toString();
+    _selectedMonth = AppFormatter.monthName(now.month);
     _loadInitialData();
   }
 
-  Future<void> _loadInitialData() async {
+  @override
+  void dispose() {
+    _bannerTimer?.cancel();
+    super.dispose();
+  }
+
+  List<String> get _years => AppFormatter.getYearList(
+        selectedYear: _selectedYear,
+      );
+
+  void _loadFromCacheIfExists() {
     final empId = SessionManager.employeeId;
-    if (empId == null || empId.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 350));
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      return;
-    }
+    final empRole = SessionManager.employeeRole ?? '';
+    if (empId == null || empId.isEmpty) return;
 
-    try {
-      final jobs = await KonveksiService().getAvailableJobs(idPegawai: empId);
-      if (!mounted) return;
-      _projectJobs.clear();
-      _productJobs.clear();
+    final (startDate, endDate) =
+        AppFormatter.dateRangeForMonth(_selectedYear, _selectedMonth);
+    final cachedJobs = KonveksiService().getCachedMyJobs(
+      idPegawai: empId,
+      kerja: empRole,
+      startDate: startDate,
+      endDate: endDate,
+    );
 
-      for (final job in jobs) {
-        final isProd = job.jenis?.toLowerCase().contains('produk') == true;
+    if (cachedJobs != null) {
+      final List<Map<String, dynamic>> loadedProjectJobs = [];
+      final List<Map<String, dynamic>> loadedProductJobs = [];
+
+      for (final job in cachedJobs) {
+        final jenisLower = (job.jenis ?? '').toLowerCase();
+        final idUpper = job.idProyek.toUpperCase();
+        final isProd = jenisLower.contains('produk') ||
+            jenisLower.contains('stok') ||
+            jenisLower.contains('stock') ||
+            idUpper.startsWith('PRD') ||
+            idUpper.startsWith('MB');
+        final barcode = job.items.isNotEmpty ? job.items.first.barcode : '';
+        final idItem = job.items.isNotEmpty ? job.items.first.idItem : '';
         final item = {
           'idproyek': job.idProyek,
           'code': job.kodeProyek ?? job.idProyek,
@@ -55,12 +107,92 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
           'priority': job.statusWaktu,
           'unit': job.items.isNotEmpty ? job.items.first.satuan : 'Pcs',
           'pricePerUnit': job.upahSatuan.toInt(),
-          'productCode': job.items.isNotEmpty ? job.items.first.barcode : job.idProyek,
+          'productCode': barcode.isNotEmpty ? barcode : job.idProyek,
+          'barcode': barcode,
+          'iditem': idItem,
           'pemesan': job.pemesan ?? '-',
           'jenis': job.jenis ?? '-',
           'koordinator': job.koordinator ?? '-',
           'itemCount': job.items.isNotEmpty ? job.items.first.jumlah : job.totalTarget,
           'isProduct': isProd,
+          'photo': job.photo,
+          'photo1': job.photo1,
+        };
+
+        if (isProd) {
+          loadedProductJobs.add(item);
+        } else {
+          loadedProjectJobs.add(item);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _projectJobs.clear();
+          _projectJobs.addAll(loadedProjectJobs);
+          _productJobs.clear();
+          _productJobs.addAll(loadedProductJobs);
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadInitialData() async {
+    final empId = SessionManager.employeeId;
+    final empRole = SessionManager.employeeRole ?? '';
+    if (empId == null || empId.isEmpty) {
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    // Tampilkan data dari cache lokal (0 ms)
+    _loadFromCacheIfExists();
+
+    try {
+      final (startDate, endDate) =
+          AppFormatter.dateRangeForMonth(_selectedYear, _selectedMonth);
+      final jobs = await KonveksiService().getMyJobs(
+        idPegawai: empId,
+        kerja: empRole,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      if (!mounted) return;
+      _projectJobs.clear();
+      _productJobs.clear();
+
+      for (final job in jobs) {
+        final jenisLower = (job.jenis ?? '').toLowerCase();
+        final idUpper = job.idProyek.toUpperCase();
+        final isProd = jenisLower.contains('produk') ||
+            jenisLower.contains('stok') ||
+            jenisLower.contains('stock') ||
+            idUpper.startsWith('PRD') ||
+            idUpper.startsWith('MB');
+        final barcode = job.items.isNotEmpty ? job.items.first.barcode : '';
+        final idItem = job.items.isNotEmpty ? job.items.first.idItem : '';
+        final item = {
+          'idproyek': job.idProyek,
+          'code': job.kodeProyek ?? job.idProyek,
+          'date': job.deadline ?? '-',
+          'name': job.namaProyek,
+          'taken': job.progressTersedia,
+          'priority': job.statusWaktu,
+          'unit': job.items.isNotEmpty ? job.items.first.satuan : 'Pcs',
+          'pricePerUnit': job.upahSatuan.toInt(),
+          'productCode': barcode.isNotEmpty ? barcode : job.idProyek,
+          'barcode': barcode,
+          'iditem': idItem,
+          'pemesan': job.pemesan ?? '-',
+          'jenis': job.jenis ?? '-',
+          'koordinator': job.koordinator ?? '-',
+          'itemCount': job.items.isNotEmpty ? job.items.first.jumlah : job.totalTarget,
+          'isProduct': isProd,
+          'photo': job.photo,
+          'photo1': job.photo1,
         };
 
         if (isProd) {
@@ -77,15 +209,12 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
     }
   }
 
-  void _onTabChanged(int index) async {
+
+  void _onTabChanged(int index) {
     if (_selectedTab == index) return;
     setState(() {
       _selectedTab = index;
-      _isLoading = true;
     });
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
   }
 
   List<Map<String, dynamic>> get _filteredJobs {
@@ -380,7 +509,7 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Rp ${_formatNumber(job['pricePerUnit'])}',
+                              AppFormatter.rupiah(job['pricePerUnit']),
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -566,7 +695,7 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
                                 ),
                               ),
                               Text(
-                                'Rp ${_formatNumber(calculatedIncome)}',
+                                AppFormatter.rupiah(calculatedIncome),
                                 style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -582,25 +711,57 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
                     SizedBox(
                       height: 44,
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
+                          final count = int.tryParse(countController.text) ?? 0;
+                          if (count <= 0) return;
+
                           Navigator.pop(context);
-                          setState(() {
-                            _showSuccessBanner = true;
-                          });
+
+                          final empId = SessionManager.employeeId ?? '';
+                          final empName = SessionManager.employeeName ?? '';
+                          final empRole = SessionManager.employeeRole ?? '';
+                          final pricePerUnit = job['pricePerUnit'] ?? 0;
+
+                          try {
+                            final res = await KonveksiService().submitWork(
+                              idProyek: job['idproyek']?.toString() ?? '',
+                              idPegawai: empId,
+                              nama: empName,
+                              kerja: empRole,
+                              items: [
+                                {
+                                  'idproyek': job['idproyek']?.toString() ?? '',
+                                  'barcode': job['barcode'] ?? '',
+                                  'iditem': job['iditem'] ?? '',
+                                  'nama': job['name'] ?? '',
+                                  'jumlah': count,
+                                  'satuan': job['unit'] ?? 'Pcs',
+                                  'harga': pricePerUnit,
+                                }
+                              ],
+                            );
+
+                            if (!mounted) return;
+                            if (res.success) {
+                              _showNotificationBanner();
+                              _loadInitialData();
+                            }
+                          } catch (_) {}
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColor.primaryDark,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         child: const Text(
-                          'Simpan',
+                          'Setor Sekarang',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -613,13 +774,6 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
         );
       },
     );
-  }
-
-  String _formatNumber(int number) {
-    return number.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]}.',
-        );
   }
 
   @override
@@ -681,50 +835,60 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
           : SafeArea(
               child: Column(
           children: [
-            if (_showSuccessBanner)
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF3),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFA6F4C5)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.notifications_active_outlined,
-                      size: 18,
-                      color: Color(0xFF027A48),
-                    ),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Text(
-                        'Setor Pekerjaan Berhasil',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF027A48),
-                        ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SizeTransition(
+                    sizeFactor: animation,
+                    child: child,
+                  ),
+                );
+              },
+              child: _showSuccessBanner
+                  ? Container(
+                      key: const ValueKey('pekerjaan_saya_success_banner'),
+                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF3),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFA6F4C5)),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        size: 16,
-                        color: Color(0xFF027A48),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.notifications_active_outlined,
+                            size: 18,
+                            color: Color(0xFF027A48),
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Setor Pekerjaan Berhasil',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF027A48),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close,
+                              size: 16,
+                              color: Color(0xFF027A48),
+                            ),
+                            onPressed: _hideNotificationBanner,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _showSuccessBanner = false;
-                        });
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
 
             if (_activeFilter != null)
               Container(
@@ -772,6 +936,30 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
                   ],
                 ),
               ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Periode Pekerjaan',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColor.black,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      _buildDropdownYearPill(),
+                      const SizedBox(width: 6),
+                      _buildDropdownMonthPill(),
+                    ],
+                  ),
+                ],
+              ),
+            ),
 
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -842,16 +1030,26 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
             ),
 
             Expanded(
-              child: jobs.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: jobs.length,
-                      itemBuilder: (context, index) {
-                        final job = jobs[index];
-                        return _buildJobCard(job);
-                      },
-                    ),
+              child: RefreshIndicator(
+                onRefresh: _loadInitialData,
+                child: jobs.isEmpty
+                    ? SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: _buildEmptyState(),
+                        ),
+                      )
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: jobs.length,
+                        itemBuilder: (context, index) {
+                          final job = jobs[index];
+                          return _buildJobCard(job);
+                        },
+                      ),
+              ),
             ),
           ],
         ),
@@ -1084,9 +1282,8 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
                         },
                       );
                       if (result == true) {
-                        setState(() {
-                          _showSuccessBanner = true;
-                        });
+                        _showNotificationBanner();
+                        _loadInitialData();
                       }
                     },
                     style: OutlinedButton.styleFrom(
@@ -1189,6 +1386,98 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildDropdownYearPill() {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedYear,
+          menuMaxHeight: 240,
+          borderRadius: BorderRadius.circular(10),
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            size: 14,
+            color: Color(0xFF64748B),
+          ),
+          isDense: true,
+          items: _years.map((y) {
+            return DropdownMenuItem(
+              value: y,
+              child: Text(
+                y,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF475467),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null && val != _selectedYear) {
+              setState(() => _selectedYear = val);
+              _loadFromCacheIfExists();
+              _loadInitialData();
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdownMonthPill() {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedMonth,
+          menuMaxHeight: 240,
+          borderRadius: BorderRadius.circular(10),
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            size: 14,
+            color: Color(0xFF64748B),
+          ),
+          isDense: true,
+          items: AppFormatter.months.map((m) {
+            return DropdownMenuItem(
+              value: m,
+              child: Text(
+                m,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF475467),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null && val != _selectedMonth) {
+              setState(() => _selectedMonth = val);
+              _loadFromCacheIfExists();
+              _loadInitialData();
+            }
+          },
+
+        ),
+      ),
+    );
+
   }
 }
 

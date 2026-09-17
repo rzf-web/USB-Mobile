@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constant/app_color.dart';
 import '../core/network/api_exception.dart';
+import '../core/session/session_manager.dart';
 import '../routes/app_routes.dart';
 import '../services/auth_service.dart';
 
@@ -30,6 +31,21 @@ class _LoginPegawaiScreenState extends State<LoginPegawaiScreen> {
     _passwordController.addListener(_onInputChanged);
     _usernameFocus.addListener(() => setState(() {}));
     _passwordFocus.addListener(() => setState(() {}));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!SessionManager.isCustomerLoggedIn) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sesi Customer belum ada. Silakan login Customer terlebih dahulu.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+      } else if (SessionManager.isEmployeeLoggedIn) {
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+      }
+    });
   }
 
   @override
@@ -79,6 +95,13 @@ class _LoginPegawaiScreenState extends State<LoginPegawaiScreen> {
       return;
     }
 
+    if (!SessionManager.isCustomerLoggedIn) {
+      setState(() {
+        _errorMessage = 'Sesi Customer tidak ditemukan. Silakan login Customer terlebih dahulu.';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -92,7 +115,11 @@ class _LoginPegawaiScreenState extends State<LoginPegawaiScreen> {
       if (!mounted) return;
 
       if (response.success) {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.home,
+          (route) => false,
+        );
       } else {
         setState(() {
           _errorMessage = response.message;
@@ -132,7 +159,13 @@ class _LoginPegawaiScreenState extends State<LoginPegawaiScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               InkWell(
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushReplacementNamed(context, AppRoutes.login);
+                  }
+                },
                 borderRadius: BorderRadius.circular(6),
                 child: Container(
                   padding: const EdgeInsets.symmetric(

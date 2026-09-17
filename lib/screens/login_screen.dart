@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constant/app_color.dart';
 import '../core/network/api_exception.dart';
+import '../core/session/session_manager.dart';
 import '../routes/app_routes.dart';
 import '../services/auth_service.dart';
 
@@ -31,6 +32,17 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.addListener(_onInputChanged);
     _emailFocus.addListener(() => setState(() {}));
     _passwordFocus.addListener(() => setState(() {}));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (SessionManager.isCustomerLoggedIn) {
+        if (SessionManager.isEmployeeLoggedIn) {
+          Navigator.pushReplacementNamed(context, AppRoutes.home);
+        } else {
+          Navigator.pushReplacementNamed(context, AppRoutes.loginPegawai);
+        }
+      }
+    });
   }
 
   @override

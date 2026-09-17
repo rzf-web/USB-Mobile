@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/transitions/smooth_page_transition.dart';
 import '../screens/beranda_screen.dart';
 import '../screens/detail_pekerjaan_screen.dart';
 import '../screens/laporan_screen.dart';
@@ -30,5 +31,20 @@ class AppRoutes {
         laporan: (context) => const LaporanScreen(),
         profil: (context) => const ProfilScreen(),
       };
+
+  static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    final builder = routes[settings.name];
+    if (builder == null) {
+      return SmoothPageRoute(
+        builder: (context) => const BerandaScreen(),
+        settings: settings,
+      );
+    }
+
+    return SmoothPageRoute(
+      builder: builder,
+      settings: settings,
+    );
+  }
 }
 
