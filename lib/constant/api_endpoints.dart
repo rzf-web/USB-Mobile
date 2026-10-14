@@ -1,22 +1,46 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../core/session/session_manager.dart';
 
 class ApiEndpoints {
   ApiEndpoints._();
 
-  /// Default Base URL sesuai platform & dokumentasi Docker Local:
-  /// - Android Emulator: http://10.0.2.2:8080
-  /// - iOS Simulator: http://127.0.0.1:8080
-  /// - Web / Windows Desktop: http://localhost:8080
+  static String? _getEnv(String key) {
+    if (!dotenv.isInitialized) return null;
+    return dotenv.maybeGet(key);
+  }
+
+  /// Default Base URL yang dimuat dari `.env`, disesuaikan dengan platform:
+  /// - Override Umum: dotenv.env['API_BASE_URL']
+  /// - Android Emulator: dotenv.env['API_BASE_URL_ANDROID'] (default: http://10.0.2.2:8080)
+  /// - iOS Simulator: dotenv.env['API_BASE_URL_IOS'] (default: http://127.0.0.1:8080)
+  /// - Web: dotenv.env['API_BASE_URL_WEB'] (default: http://localhost:8080)
+  /// - Windows / macOS / Linux Desktop: dotenv.env['API_BASE_URL_DESKTOP'] (default: http://localhost:8080)
   static String get defaultBaseUrl {
+    final overrideUrl = _getEnv('API_BASE_URL');
+    if (overrideUrl != null && overrideUrl.trim().isNotEmpty) {
+      return overrideUrl.trim();
+    }
+
     if (kIsWeb) {
-      return 'http://localhost:8080';
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8080';
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return 'http://127.0.0.1:8080';
-    } else {
-      return 'http://localhost:8080';
+      return _getEnv('API_BASE_URL_WEB') ?? 'http://localhost:8080';
+    }
+
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return _getEnv('API_BASE_URL_ANDROID') ?? 'http://10.0.2.2:8080';
+      case TargetPlatform.iOS:
+        return _getEnv('API_BASE_URL_IOS') ?? 'http://127.0.0.1:8080';
+      case TargetPlatform.windows:
+      case TargetPlatform.macOS:
+      case TargetPlatform.linux:
+        return _getEnv('API_BASE_URL_DESKTOP') ??
+            _getEnv('API_BASE_URL_WEB') ??
+            'http://localhost:8080';
+      default:
+        return _getEnv('API_BASE_URL_DESKTOP') ??
+            _getEnv('API_BASE_URL_WEB') ??
+            'http://localhost:8080';
     }
   }
 
@@ -29,8 +53,15 @@ class ApiEndpoints {
     return defaultBaseUrl;
   }
 
-  static const Duration connectTimeout = Duration(seconds: 20);
-  static const Duration receiveTimeout = Duration(seconds: 20);
+  static Duration get connectTimeout {
+    final seconds = int.tryParse(_getEnv('CONNECT_TIMEOUT_SECONDS') ?? '');
+    return Duration(seconds: seconds ?? 20);
+  }
+
+  static Duration get receiveTimeout {
+    final seconds = int.tryParse(_getEnv('RECEIVE_TIMEOUT_SECONDS') ?? '');
+    return Duration(seconds: seconds ?? 20);
+  }
 
   // Endpoint sesuai Dokumentasi API Konveksi (Local Docker)
   static const String customerLogin = '/login.php';

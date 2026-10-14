@@ -1,3 +1,4 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:usb_mobile/core/session/session_manager.dart';
@@ -7,6 +8,7 @@ import 'package:usb_mobile/main.dart';
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    dotenv.loadFromString(envString: 'API_BASE_URL=http://localhost:8080\nCONNECT_TIMEOUT_SECONDS=20\nRECEIVE_TIMEOUT_SECONDS=20');
     SharedPreferences.setMockInitialValues({});
     await SessionManager.init();
     await AppFormatter.init();

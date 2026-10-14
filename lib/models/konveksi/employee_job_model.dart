@@ -147,26 +147,22 @@ class EmployeeJobModel {
         priority == 'Proses' ||
         priority == 'Selesai') {
       final rawPrior = json['prioritas']?.toString() ?? '';
-      if (rawPrior == '1' ||
-          rawPrior == '1.000000' ||
-          rawPrior.toLowerCase() == 'krisis') {
+      if (rawPrior.toLowerCase() == 'krisis') {
         priority = 'Krisis';
-      } else if (rawPrior == '2' ||
-          rawPrior == '2.000000' ||
+      } else if (rawPrior == '1' ||
+          rawPrior == '1.000000' ||
           rawPrior.toLowerCase() == 'tinggi') {
         priority = 'Tinggi';
-      } else if (rawPrior == '3' ||
-          rawPrior == '3.000000' ||
+      } else if (rawPrior == '2' ||
+          rawPrior == '2.000000' ||
           rawPrior.toLowerCase() == 'sedang') {
         priority = 'Sedang';
-      } else if (rawPrior == '4' ||
+      } else if (rawPrior == '3' ||
+          rawPrior == '3.000000' ||
+          rawPrior == '4' ||
           rawPrior == '4.000000' ||
           rawPrior.toLowerCase() == 'rendah') {
         priority = 'Rendah';
-      } else if (sisa <= 1) {
-        priority = 'Krisis';
-      } else if (sisa <= 3) {
-        priority = 'Tinggi';
       } else {
         priority = 'Sedang';
       }

@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import '../constant/app_color.dart';
 import '../core/session/session_manager.dart';
 import '../core/utils/app_formatter.dart';
+import '../routes/app_routes.dart';
 import '../services/konveksi_service.dart';
 import '../widgets/cached_product_image.dart';
-
-
 
 class DetailPekerjaanScreen extends StatefulWidget {
   const DetailPekerjaanScreen({super.key});
@@ -17,6 +16,7 @@ class DetailPekerjaanScreen extends StatefulWidget {
 class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
   bool _initialized = false;
   bool _isProduct = false;
+  bool _isCutting = false;
   bool _isLaporan = false;
   String? _paymentStatus;
   late int _income;
@@ -26,6 +26,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
   late String _idItem;
   late String _code;
   late String _date;
+  late String _deadline;
   late String _name;
   late String _priority;
   late String _unit;
@@ -36,6 +37,8 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
   late int _itemCount;
   late String _photo;
   late String _photo1;
+  List<Map<String, dynamic>> _bahanCuttingList = [];
+  List<Map<String, dynamic>> _hasilCuttingList = [];
 
   @override
   void didChangeDependencies() {
@@ -44,6 +47,8 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic>) {
         _isProduct = args['isProduct'] == true;
+        _isCutting = args['isCutting'] == true ||
+            (_isProduct && (SessionManager.employeeRole ?? '').toLowerCase().contains('cut'));
         _isLaporan = args['isLaporan'] == true;
         _paymentStatus = args['paymentStatus'] as String?;
         _takenCount = args['taken'] as int? ?? args['jumlah'] as int? ?? 0;
@@ -56,6 +61,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         _idItem = args['iditem'] as String? ?? '';
         _code = args['code'] as String? ?? '-';
         _date = args['date'] as String? ?? '-';
+        _deadline = args['deadline'] as String? ?? args['dedline'] as String? ?? _date;
         _name = args['name'] as String? ?? '-';
         _priority = args['priority'] as String? ?? '-';
         if (_priority == 'Belum Mulai' ||
@@ -81,6 +87,43 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         _photo = args['photo'] as String? ?? '';
         _photo1 = args['photo1'] as String? ?? '';
 
+        if (args['bahanCutting'] is List && (args['bahanCutting'] as List).isNotEmpty) {
+          _bahanCuttingList = (args['bahanCutting'] as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+        } else {
+          _bahanCuttingList = [
+            {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
+            {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
+            {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
+          ];
+        }
+
+        if (args['hasilCutting'] is List && (args['hasilCutting'] as List).isNotEmpty) {
+          _hasilCuttingList = (args['hasilCutting'] as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+        } else {
+          _hasilCuttingList = [
+            {
+              'barcode': '000123434',
+              'nama': 'Kaos Lengan Pendek L',
+              'satuan': 'PCS',
+              'jumlah': 7,
+              'photoName': 'Photo1.jpg',
+              'showPreview': true,
+            },
+            {
+              'barcode': '000123434',
+              'nama': 'Kaos Lengan Pendek L',
+              'satuan': 'KG',
+              'jumlah': 7,
+              'photoName': 'Photo1.jpg',
+              'showDelete': true,
+            },
+          ];
+        }
+
         if (_pricePerUnit == 0 && _productCode.isNotEmpty && _productCode != '-') {
           final empId = SessionManager.employeeId ?? '';
           final empRole = SessionManager.employeeRole ?? '';
@@ -102,6 +145,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         }
       } else {
         _isProduct = false;
+        _isCutting = false;
         _isLaporan = false;
         _paymentStatus = null;
         _income = 0;
@@ -111,6 +155,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         _idItem = '';
         _code = '-';
         _date = '-';
+        _deadline = '-';
         _name = '-';
         _priority = '-';
         _unit = 'Pcs';
@@ -121,6 +166,8 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         _itemCount = 0;
         _photo = '';
         _photo1 = '';
+        _bahanCuttingList = [];
+        _hasilCuttingList = [];
       }
       _initialized = true;
     }
@@ -157,7 +204,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.arrow_back, size: 20),
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
                           onPressed: () => Navigator.pop(context),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -295,7 +342,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                           Navigator.pop(context);
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColor.primaryDark,
+                          backgroundColor: const Color(0xFF0F5A50),
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -352,7 +399,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.arrow_back, size: 20),
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
                           onPressed: () => Navigator.pop(context),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -521,7 +568,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                                 height: 20,
                                 decoration: BoxDecoration(
                                   border: Border.all(
-                                    color: AppColor.primary,
+                                    color: const Color(0xFF0F5A50),
                                     width: 1.5,
                                   ),
                                   shape: BoxShape.circle,
@@ -529,7 +576,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                                 child: const Icon(
                                   Icons.add,
                                   size: 14,
-                                  color: AppColor.primary,
+                                  color: Color(0xFF0F5A50),
                                 ),
                               ),
                             ],
@@ -696,33 +743,40 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                           final empRole = SessionManager.employeeRole ?? '';
 
                           try {
-                            await KonveksiService().submitWork(
-                              idProyek: _idProyek.isNotEmpty && _idProyek != '-'
-                                  ? _idProyek
-                                  : _code,
-                              idPegawai: empId,
-                              nama: empName,
-                              kerja: empRole,
-                              items: [
-                                {
-                                  'barcode': _productCode,
-                                  'finish': count,
-                                  'satuan': _unit,
-                                  'harga': _pricePerUnit,
-                                  'ket':
-                                      'Setoran $empRole $_name (${selectedGrade ?? 'Grade A'})',
-                                  'status': 'Belum Lunas',
-                                }
-                              ],
-                            );
-                          } catch (_) {}
+                            if (empId.isNotEmpty) {
+                              await KonveksiService().submitWork(
+                                idProyek: _idProyek.isNotEmpty && _idProyek != '-'
+                                    ? _idProyek
+                                    : _code,
+                                idPegawai: empId,
+                                nama: empName,
+                                kerja: empRole,
+                                items: [
+                                  {
+                                    'barcode': _productCode,
+                                    'finish': count,
+                                    'jumlah': count,
+                                    'satuan': _unit,
+                                    'harga': _pricePerUnit,
+                                    'ket':
+                                        'Setoran $empRole $_name (${selectedGrade ?? 'Grade A'})',
+                                    'status': 'Belum Lunas',
+                                  }
+                                ],
+                              );
+                            }
 
-                          if (!context.mounted) return;
-                          Navigator.pop(context);
-                          Navigator.pop(context, true);
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                            Navigator.pop(context, true);
+                          } catch (_) {
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                            Navigator.pop(context, true);
+                          }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColor.primaryDark,
+                          backgroundColor: const Color(0xFF0F5A50),
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -757,15 +811,16 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Container(
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
+              color: Colors.white,
               shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFEAECF0)),
             ),
             child: const Icon(
-              Icons.arrow_back,
-              size: 16,
+              Icons.arrow_back_ios_new,
+              size: 15,
               color: AppColor.black,
             ),
           ),
@@ -787,9 +842,11 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                child: _isCutting
+                    ? _buildCuttingDetailContent()
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                     if (_isLaporan)
                       Container(
                         margin: const EdgeInsets.only(bottom: 14),
@@ -1046,19 +1103,19 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                                 icon: const Icon(
                                   Icons.edit_outlined,
                                   size: 16,
-                                  color: AppColor.primaryDark,
+                                  color: Color(0xFF0F5A50),
                                 ),
                                 label: const Text(
                                   'Ubah Pengambilan Proyek',
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColor.primaryDark,
+                                    color: Color(0xFF0F5A50),
                                   ),
                                 ),
                                 style: OutlinedButton.styleFrom(
                                   side: const BorderSide(
-                                    color: Color(0xFFD0D5DD),
+                                    color: Color(0xFF0F5A50),
                                     width: 1.2,
                                   ),
                                   shape: RoundedRectangleBorder(
@@ -1204,7 +1261,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                   child: ElevatedButton(
                     onPressed: _openSetorHasilModal,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColor.primaryDark,
+                      backgroundColor: const Color(0xFF0F5A50),
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -1224,6 +1281,407 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCuttingDetailContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 42,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pushNamed(context, AppRoutes.buatProduk);
+            },
+            icon: const Icon(
+              Icons.edit_outlined,
+              size: 16,
+              color: Color(0xFF0F5A50),
+            ),
+            label: const Text(
+              'Ubah Proyek',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0F5A50),
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(
+                color: Color(0xFF0F5A50),
+                width: 1.2,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Identitas Proyek',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F5A50),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Divider(height: 1, color: Color(0xFFEAECF0)),
+        const SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _buildInfoColumn(
+                'Kode Project',
+                _productCode.isNotEmpty && _productCode != '-' && _productCode.startsWith('MP')
+                    ? _productCode
+                    : (_code.isNotEmpty && _code != '-' ? _code : 'MP0232434'),
+              ),
+            ),
+            Expanded(
+              child: _buildInfoColumn(
+                'Tanggal',
+                _date.isNotEmpty && _date != '-' ? _date : '25/09/2026',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildInfoRow(
+          'Pemesan',
+          _pemesan.isNotEmpty && _pemesan != '-' ? _pemesan : 'Cep Akhyar Mubarok',
+        ),
+        const SizedBox(height: 12),
+        _buildInfoRow(
+          'Koordinator',
+          _koordinator.isNotEmpty && _koordinator != '-' ? _koordinator : 'Ari Saepuloh',
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _buildInfoColumn(
+                'Dedline',
+                _deadline.isNotEmpty && _deadline != '-' ? _deadline : '25/09/2026',
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Prioritas Proyek',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF3),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF12B76A),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _priority.isNotEmpty && _priority != '-' ? _priority : 'Sedang',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF027A48),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Bahan Cutting',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F5A50),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ..._bahanCuttingList.map((item) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFEAECF0)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item['barcode']?.toString() ?? '000123434',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF98A2B3),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        item['nama']?.toString() ?? 'Cooton Combad 4s',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColor.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    item['satuan']?.toString() ?? 'KG',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${item['jumlah'] ?? 7}',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 16),
+        const Text(
+          'Perkiraan Hasil Cutting',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F5A50),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ..._hasilCuttingList.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          final bool isDelete = item['showDelete'] == true || index > 0;
+          final bool showPreview = item['showPreview'] == true || index == 0;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFEAECF0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['barcode']?.toString() ?? '000123434',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF98A2B3),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            item['nama']?.toString() ?? 'Kaos Lengan Pendek L',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColor.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        item['satuan']?.toString() ?? 'PCS',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${item['jumlah'] ?? 7}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                    if (isDelete) ...[
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _hasilCuttingList.removeAt(index);
+                          });
+                        },
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE4E2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.delete_outline,
+                            size: 16,
+                            color: Color(0xFFD92D20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      item['photoName']?.toString() ?? 'Photo1.jpg',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFD0D5DD)),
+                      ),
+                      child: const Text(
+                        'Select file',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF344054),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (showPreview) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 150,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFEAECF0)),
+                          ),
+                          child: Center(
+                            child: CustomPaint(
+                              size: const Size(90, 100),
+                              painter: ShirtPainter(isBack: false),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          height: 150,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFEAECF0)),
+                          ),
+                          child: Center(
+                            child: CustomPaint(
+                              size: const Size(90, 100),
+                              painter: ShirtPainter(isBack: true),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 20),
+      ],
     );
   }
 

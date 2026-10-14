@@ -7,11 +7,18 @@ import '../models/konveksi/employee_earnings_model.dart';
 import '../models/konveksi/employee_job_model.dart';
 import '../routes/app_routes.dart';
 import '../services/konveksi_service.dart';
+import '../widgets/app_notification_banner.dart';
 import '../widgets/skeleton.dart';
+import '../widgets/take_order_bottom_sheet.dart';
 import '../core/utils/app_formatter.dart';
 
 class BerandaScreen extends StatefulWidget {
-  const BerandaScreen({super.key});
+  final bool isEmbedded;
+
+  const BerandaScreen({
+    super.key,
+    this.isEmbedded = false,
+  });
 
   @override
   State<BerandaScreen> createState() => _BerandaScreenState();
@@ -320,449 +327,41 @@ class _BerandaScreenState extends State<BerandaScreen> {
   }
 
   void _openAmbilPekerjaanModal(Map<String, dynamic> job) {
-    final TextEditingController countController = TextEditingController();
-    int calculatedIncome = 0;
-    final int available = (job['available'] as num?)?.toInt() ?? 0;
-    final int pricePerUnit = (job['pricePerUnit'] as num?)?.toInt() ?? 0;
+    TakeOrderBottomSheet.show(
+      context,
+      job: job,
+      onSubmit: (count) async {
+        final empId = SessionManager.employeeId ?? '';
+        final empName = SessionManager.employeeName ?? '';
+        final empRole = SessionManager.employeeRole ?? '';
+        final pricePerUnit = (job['pricePerUnit'] as num?)?.toInt() ?? 0;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              padding: EdgeInsets.only(
-                top: 16,
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back, size: 20),
-                          onPressed: () => Navigator.pop(context),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        const Expanded(
-                          child: Text(
-                            'Ambil Pekerjaan',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppColor.black,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 20),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFEAECF0)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  job['code'] ?? '-',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF475467),
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                job['date'] ?? '-',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF98A2B3),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _selectedTabIndex == 0
-                                ? 'Nama Proyek'
-                                : 'Nama Produk',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                          Text(
-                            job['name'] ?? '-',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColor.black,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Jumlah Pekerjaan Tersedia',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '$available',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColor.black,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'Satuan',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    job['unit'] ?? 'Pcs',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColor.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _selectedTabIndex == 0
-                                        ? 'Prioritas Proyek'
-                                        : 'Prioritas Produk',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFECFDF3),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          width: 6,
-                                          height: 6,
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFF12B76A),
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          job['priority'] ?? 'Sedang',
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF027A48),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'Upah Satuan',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    AppFormatter.rupiah(pricePerUnit),
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColor.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            RichText(
-                              text: const TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: 'Jumlah Pekerjaan ',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColor.black,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: '*',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFFD92D20),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (available > 0)
-                              InkWell(
-                                onTap: () {
-                                  countController.text = available.toString();
-                                  countController.selection = TextSelection.fromPosition(
-                                    TextPosition(offset: countController.text.length),
-                                  );
-                                  setModalState(() {
-                                    calculatedIncome = available * pricePerUnit;
-                                  });
-                                },
-                                borderRadius: BorderRadius.circular(4),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                  child: Text(
-                                    'Ambil Semua ($available)',
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColor.primary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: countController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          onChanged: (val) {
-                            final count = int.tryParse(val) ?? 0;
-                            setModalState(() {
-                              calculatedIncome = count * pricePerUnit;
-                            });
-                          },
-                          decoration: InputDecoration(
-                            hintText: '0',
-                            suffixText: job['unit'] ?? 'Pcs',
-                            suffixStyle: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF475467),
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: (int.tryParse(countController.text) ?? 0) > available
-                                    ? const Color(0xFFD92D20)
-                                    : const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: (int.tryParse(countController.text) ?? 0) > available
-                                    ? const Color(0xFFD92D20)
-                                    : const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: (int.tryParse(countController.text) ?? 0) > available
-                                    ? const Color(0xFFD92D20)
-                                    : AppColor.primary,
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if ((int.tryParse(countController.text) ?? 0) > available)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4, left: 2),
-                            child: Text(
-                              'Jumlah melebihi kuota yang tersedia ($available)',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFFD92D20),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F6F4),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'Perkiraan Pendapatan',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            AppFormatter.rupiah(calculatedIncome),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColor.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      height: 46,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final count = int.tryParse(countController.text) ?? 0;
-                          Navigator.pop(context);
-
-                          if (count <= 0 || count > available) {
-                            _showNotificationBanner(success: false);
-                            return;
-                          }
-
-                          final empId = SessionManager.employeeId ?? '';
-                          final empName = SessionManager.employeeName ?? '';
-                          final empRole = SessionManager.employeeRole ?? '';
-
-                          try {
-                            final res = await KonveksiService().takeOrder(
-                              idProyek: job['idproyek']?.toString() ?? '',
-                              idPegawai: empId,
-                              nama: empName,
-                              kerja: empRole,
-                              items: [
-                                {
-                                  'idproyek': job['idproyek']?.toString() ?? '',
-                                  'barcode': job['barcode'] ?? '',
-                                  'iditem': job['iditem'] ?? '',
-                                  'nama': job['name'] ?? '',
-                                  'jumlah': count,
-                                  'satuan': job['unit'] ?? 'Pcs',
-                                  'harga': pricePerUnit,
-                                }
-                              ],
-                            );
-
-                            if (!mounted) return;
-                            if (res.success) {
-                              _showNotificationBanner(success: true);
-                              _fetchEarningsAndJobs();
-                            } else {
-                              _showNotificationBanner(success: false);
-                            }
-                          } catch (_) {
-                            if (!mounted) return;
-                            _showNotificationBanner(success: false);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColor.primaryDark,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text(
-                          'Simpan',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+        final res = await KonveksiService().takeOrder(
+          idProyek: job['idproyek']?.toString() ?? '',
+          idPegawai: empId,
+          nama: empName,
+          kerja: empRole,
+          items: [
+            {
+              'idproyek': job['idproyek']?.toString() ?? '',
+              'barcode': job['barcode'] ?? '',
+              'iditem': job['iditem'] ?? '',
+              'nama': job['name'] ?? '',
+              'jumlah': count,
+              'satuan': job['unit'] ?? 'Pcs',
+              'harga': pricePerUnit,
+            }
+          ],
         );
+
+        if (res.success) {
+          _showNotificationBanner(success: true);
+          _fetchEarningsAndJobs();
+          return true;
+        } else {
+          _showNotificationBanner(success: false);
+          return false;
+        }
       },
     );
   }
@@ -785,8 +384,13 @@ class _BerandaScreenState extends State<BerandaScreen> {
           backgroundColor: AppColor.primary,
           body: _isLoading
               ? const SingleChildScrollView(child: BerandaSkeleton())
-              : SingleChildScrollView(
-                  child: Column(
+              : RefreshIndicator(
+                  color: AppColor.primary,
+                  backgroundColor: Colors.white,
+                  onRefresh: _fetchEarningsAndJobs,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
@@ -808,95 +412,14 @@ class _BerandaScreenState extends State<BerandaScreen> {
                         ),
                       );
                     },
-                    child: _showSuccessBanner
-                        ? Container(
-                            key: const ValueKey('success_banner'),
-                            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFECFDF3),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFA6F4C5)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.check_circle_outline,
-                                  size: 18,
-                                  color: Color(0xFF027A48),
-                                ),
-                                const SizedBox(width: 10),
-                                const Expanded(
-                                  child: Text(
-                                    'Pekerjaan Berhasil Ditambahkan',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF027A48),
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    size: 16,
-                                    color: Color(0xFF027A48),
-                                  ),
-                                  onPressed: _hideNotificationBanner,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                ),
-                              ],
-                            ),
-                          )
-                        : _showFailBanner
-                            ? Container(
-                                key: const ValueKey('fail_banner'),
-                                margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFEE4E2),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFFFECDCA)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.notifications_active_outlined,
-                                      size: 18,
-                                      color: Color(0xFFD92D20),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(
-                                      child: Text(
-                                        'Pekerjaan Gagal Ditambahkan',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFFD92D20),
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.close,
-                                        size: 16,
-                                        color: Color(0xFFD92D20),
-                                      ),
-                                      onPressed: _hideNotificationBanner,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : const SizedBox.shrink(),
+                    child: AppNotificationBanner(
+                      isVisible: _showSuccessBanner || _showFailBanner,
+                      isSuccess: _showSuccessBanner,
+                      message: _showSuccessBanner
+                          ? 'Pekerjaan Berhasil Ditambahkan'
+                          : 'Pekerjaan Gagal Ditambahkan',
+                      onClose: _hideNotificationBanner,
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -1241,7 +764,10 @@ class _BerandaScreenState extends State<BerandaScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: Container(
+    ),
+    bottomNavigationBar: widget.isEmbedded
+        ? null
+        : Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           border: Border(

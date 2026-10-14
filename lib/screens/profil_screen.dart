@@ -7,10 +7,12 @@ import '../core/session/session_manager.dart';
 import '../routes/app_routes.dart';
 import '../services/auth_service.dart';
 import '../widgets/skeleton.dart';
+import '../widgets/app_notification_banner.dart';
 
 
 class ProfilScreen extends StatefulWidget {
-  const ProfilScreen({super.key});
+  final bool isEmbedded;
+  const ProfilScreen({super.key, this.isEmbedded = false});
 
   @override
   State<ProfilScreen> createState() => _ProfilScreenState();
@@ -526,62 +528,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 280),
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SizeTransition(
-                      sizeFactor: animation,
-                      child: child,
-                    ),
-                  );
-                },
-                child: _showSuccessBanner
-                    ? Container(
-                        key: const ValueKey('profil_success_banner'),
-                        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF3),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFA6F4C5)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.notifications_active_outlined,
-                              size: 18,
-                              color: Color(0xFF027A48),
-                            ),
-                            const SizedBox(width: 10),
-                            const Expanded(
-                              child: Text(
-                                'Ubah Kata Sandi Berhasil',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF027A48),
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close,
-                                size: 16,
-                                color: Color(0xFF027A48),
-                              ),
-                              onPressed: _hideNotificationBanner,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                          ],
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+              AppNotificationBanner(
+                isVisible: _showSuccessBanner,
+                isSuccess: true,
+                message: 'Ubah Kata Sandi Berhasil',
+                onClose: _hideNotificationBanner,
               ),
 
               const SizedBox(height: 24),
@@ -759,7 +710,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
         ),
       ),
 
-      bottomNavigationBar: Container(
+      bottomNavigationBar: widget.isEmbedded
+          ? null
+          : Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           border: Border(
@@ -778,9 +731,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   activeIcon: Icons.home_rounded,
                   label: 'Beranda',
                   onTap: () {
+                    final isCutting =
+                        (SessionManager.employeeRole ?? '').toLowerCase().contains('cut');
                     Navigator.pushNamedAndRemoveUntil(
                       context,
-                      AppRoutes.home,
+                      isCutting ? AppRoutes.berandaCutting : AppRoutes.home,
                       (route) => false,
                     );
                   },

@@ -9,7 +9,8 @@ import '../core/utils/app_formatter.dart';
 
 
 class LaporanScreen extends StatefulWidget {
-  const LaporanScreen({super.key});
+  final bool isEmbedded;
+  const LaporanScreen({super.key, this.isEmbedded = false});
 
   @override
   State<LaporanScreen> createState() => _LaporanScreenState();
@@ -491,7 +492,9 @@ class _LaporanScreenState extends State<LaporanScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: Container(
+      bottomNavigationBar: widget.isEmbedded
+          ? null
+          : Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           border: Border(

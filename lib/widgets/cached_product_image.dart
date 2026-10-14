@@ -4,10 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import '../constant/api_endpoints.dart';
 import '../constant/app_color.dart';
-
-/// Widget untuk memuat foto produk dengan mekanisme disk caching lokal.
-/// Gambar yang sudah di-download disimpan di storage lokal perangkat
-/// sehingga dapat dibuka seketika (0 ms) dan tidak perlu di-download ulang.
 class CachedProductImage extends StatefulWidget {
   final String? photoName;
   final Widget Function(BuildContext) fallbackBuilder;
@@ -69,8 +65,6 @@ class _CachedProductImageState extends State<CachedProductImage> {
 
       final safeName = photo.replaceAll(RegExp(r'[^\w\.\-]'), '_');
       final targetFile = File('${cacheDir.path}/$safeName');
-
-      // Cek apakah file sudah tersimpan di disk lokal
       if (await targetFile.exists() && await targetFile.length() > 0) {
         if (mounted) {
           setState(() {
@@ -81,8 +75,6 @@ class _CachedProductImageState extends State<CachedProductImage> {
         }
         return;
       }
-
-      // Download gambar dari backend
       final url = ApiEndpoints.getImageUrl(photo);
       if (url.isEmpty) {
         if (mounted) setState(() => _isLoading = false);
