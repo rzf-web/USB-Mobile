@@ -99,10 +99,10 @@ class _TakeOrderBottomSheetState extends State<TakeOrderBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final priority = widget.job['priority']?.toString() ?? 'Sedang';
-    final code = widget.job['code']?.toString() ?? 'JL002111938239';
-    final date = widget.job['date']?.toString() ?? '20/08/2026';
-    final name = widget.job['name']?.toString() ?? 'Kemeja RZF Software';
+    final priority = widget.job['priority']?.toString() ?? 'Normal';
+    final code = widget.job['code']?.toString() ?? '-';
+    final date = widget.job['date']?.toString() ?? '-';
+    final name = widget.job['name']?.toString() ?? '-';
 
     return Container(
       decoration: const BoxDecoration(

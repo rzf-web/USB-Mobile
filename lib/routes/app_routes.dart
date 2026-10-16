@@ -36,44 +36,6 @@ class AppRoutes {
       };
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    if (settings.name == berandaCutting) {
-      return SmoothPageRoute(
-        builder: (context) =>
-            const MainShellScreen(initialIndex: 0, forceCutting: true),
-        settings: settings,
-      );
-    }
-    if (settings.name == home) {
-      return SmoothPageRoute(
-        builder: (context) => const MainShellScreen(initialIndex: 0),
-        settings: settings,
-      );
-    }
-    if (settings.name == buatProduk) {
-      return SmoothPageRoute(
-        builder: (context) => const BuatProdukScreen(),
-        settings: settings,
-      );
-    }
-    if (settings.name == pekerjaanSaya) {
-      return SmoothPageRoute(
-        builder: (context) => const MainShellScreen(initialIndex: 1),
-        settings: settings,
-      );
-    }
-    if (settings.name == laporan) {
-      return SmoothPageRoute(
-        builder: (context) => const MainShellScreen(initialIndex: 2),
-        settings: settings,
-      );
-    }
-    if (settings.name == profil) {
-      return SmoothPageRoute(
-        builder: (context) => const MainShellScreen(initialIndex: 3),
-        settings: settings,
-      );
-    }
-
     final builder = routes[settings.name];
     if (builder == null) {
       return SmoothPageRoute(
@@ -88,4 +50,3 @@ class AppRoutes {
     );
   }
 }
-

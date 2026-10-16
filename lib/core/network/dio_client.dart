@@ -43,7 +43,7 @@ class DioClient {
                     options.headers['X-Customer-ID'] == null ||
                     options.headers['X-Customer-ID'].toString().isEmpty ||
                     options.headers['X-Customer-ID'].toString() == '0')) {
-              debugPrint('⚠️ [DIO WARNING] Endpoint "${options.path}" dipanggil tanpa header X-Customer-ID yang valid! '
+              debugPrint('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â [DIO WARNING] Endpoint "${options.path}" dipanggil tanpa header X-Customer-ID yang valid! '
                   'SessionManager.customerId = "${SessionManager.customerId}". '
                   'Pastikan pengguna sudah login sebagai Customer.');
             }

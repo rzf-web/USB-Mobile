@@ -131,7 +131,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                           color: AppColor.black,
                         ),
                         decoration: InputDecoration(
-                          hintText: '••••••••••••',
+                          hintText: '••••••••',
                           hintStyle: const TextStyle(
                             fontSize: 13,
                             color: Color(0xFF98A2B3),
@@ -183,7 +183,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                           color: AppColor.black,
                         ),
                         decoration: InputDecoration(
-                          hintText: '••••••••••••',
+                          hintText: '••••••••',
                           hintStyle: const TextStyle(
                             fontSize: 13,
                             color: Color(0xFF98A2B3),
@@ -235,7 +235,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                           color: AppColor.black,
                         ),
                         decoration: InputDecoration(
-                          hintText: '••••••••••••',
+                          hintText: '••••••••',
                           hintStyle: const TextStyle(
                             fontSize: 13,
                             color: Color(0xFF98A2B3),

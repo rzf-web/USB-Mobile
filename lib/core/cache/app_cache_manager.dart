@@ -46,7 +46,7 @@ class AppCacheManager {
       return await _safePrefs.setString(_formatKey(key), encoded);
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('⚠️ [AppCacheManager] Gagal menyimpan cache untuk key "$key": $e');
+        debugPrint('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â [AppCacheManager] Gagal menyimpan cache untuk key "$key": $e');
       }
       return false;
     }
@@ -75,7 +75,7 @@ class AppCacheManager {
       return decoded['payload'];
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('⚠️ [AppCacheManager] Gagal membaca cache untuk key "$key": $e');
+        debugPrint('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â [AppCacheManager] Gagal membaca cache untuk key "$key": $e');
       }
       return null;
     }

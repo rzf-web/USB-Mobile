@@ -143,153 +143,11 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
     }
   }
 
-  static List<Map<String, dynamic>> get _demoProjectJobs => [
-    {
-      'idproyek': 'JL002111938239',
-      'code': 'JL002111938239',
-      'date': '20/08/2026',
-      'name': 'Kemeja RZF Software',
-      'taken': 50,
-      'priority': 'Sedang',
-      'unit': 'Pcs',
-      'pricePerUnit': 2000,
-      'productCode': '000000323',
-      'barcode': '000000323',
-      'iditem': '1',
-      'pemesan': 'Cep Akhyar Mubarok',
-      'jenis': 'Sales Order',
-      'koordinator': 'Andri',
-      'itemCount': 20,
-      'isProduct': false,
-      'isCutting': false,
-      'photo': '',
-      'photo1': '',
-    },
-    {
-      'idproyek': 'JL002111938239',
-      'code': 'JL002111938239',
-      'date': '20/08/2026',
-      'name': 'Kemeja RZF Software',
-      'taken': 50,
-      'priority': 'Sedang',
-      'unit': 'Pcs',
-      'pricePerUnit': 2000,
-      'productCode': '000000323',
-      'barcode': '000000323',
-      'iditem': '2',
-      'pemesan': 'Cep Akhyar Mubarok',
-      'jenis': 'Sales Order',
-      'koordinator': 'Andri',
-      'itemCount': 20,
-      'isProduct': false,
-      'isCutting': false,
-      'photo': '',
-      'photo1': '',
-    },
-  ];
-
-  static List<Map<String, dynamic>> get _demoProductCuttingJobs => [
-    {
-      'idproyek': 'MP002111938239',
-      'code': 'MP002111938239',
-      'date': '20/08/2026',
-      'name': 'Kemeja RZF Software',
-      'taken': 50,
-      'priority': 'Sedang',
-      'unit': 'Pcs',
-      'pricePerUnit': 2000,
-      'productCode': 'MP0232434',
-      'barcode': '000123434',
-      'iditem': '1',
-      'pemesan': 'Cep Akhyar Mubarok',
-      'jenis': 'Sales Order',
-      'koordinator': 'Ari Saepuloh',
-      'deadline': '25/09/2026',
-      'itemCount': 50,
-      'isProduct': true,
-      'isCutting': true,
-      'bahanCutting': [
-        {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-        {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-        {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-      ],
-      'hasilCutting': [
-        {
-          'barcode': '000123434',
-          'nama': 'Kaos Lengan Pendek L',
-          'satuan': 'PCS',
-          'jumlah': 7,
-          'photoName': 'Photo1.jpg',
-        },
-        {
-          'barcode': '000123434',
-          'nama': 'Kaos Lengan Pendek L',
-          'satuan': 'KG',
-          'jumlah': 7,
-          'photoName': 'Photo1.jpg',
-        },
-      ],
-      'photo': '',
-      'photo1': '',
-    },
-    {
-      'idproyek': 'MP002111938239',
-      'code': 'MP002111938239',
-      'date': '20/08/2026',
-      'name': 'Kemeja RZF Software',
-      'taken': 50,
-      'priority': 'Sedang',
-      'unit': 'Pcs',
-      'pricePerUnit': 2000,
-      'productCode': 'MP0232434',
-      'barcode': '000123434',
-      'iditem': '2',
-      'pemesan': 'Cep Akhyar Mubarok',
-      'jenis': 'Sales Order',
-      'koordinator': 'Ari Saepuloh',
-      'deadline': '25/09/2026',
-      'itemCount': 50,
-      'isProduct': true,
-      'isCutting': true,
-      'bahanCutting': [
-        {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-        {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-        {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-      ],
-      'hasilCutting': [
-        {
-          'barcode': '000123434',
-          'nama': 'Kaos Lengan Pendek L',
-          'satuan': 'PCS',
-          'jumlah': 7,
-          'photoName': 'Photo1.jpg',
-        },
-        {
-          'barcode': '000123434',
-          'nama': 'Kaos Lengan Pendek L',
-          'satuan': 'KG',
-          'jumlah': 7,
-          'photoName': 'Photo1.jpg',
-        },
-      ],
-      'photo': '',
-      'photo1': '',
-    },
-  ];
-
   Future<void> _loadInitialData() async {
     final empId = SessionManager.employeeId;
     final empRole = SessionManager.employeeRole ?? '';
     if (empId == null || empId.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      if (_projectJobs.isEmpty) {
-        _projectJobs.addAll(_demoProjectJobs);
-      }
-      if (_productJobs.isEmpty) {
-        _productJobs.addAll(_demoProductCuttingJobs);
-      }
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
 
@@ -339,6 +197,12 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
           'isProduct': isProd,
           'photo': job.photo,
           'photo1': job.photo1,
+          'bahanCutting': (job.rawData is Map && job.rawData['bahanCutting'] is List)
+              ? job.rawData['bahanCutting']
+              : [],
+          'hasilCutting': (job.rawData is Map && job.rawData['hasilCutting'] is List)
+              ? job.rawData['hasilCutting']
+              : [],
         };
 
         if (isProd) {
@@ -347,20 +211,7 @@ class _PekerjaanSayaScreenState extends State<PekerjaanSayaScreen> {
           _projectJobs.add(item);
         }
       }
-
-      if (_projectJobs.isEmpty) {
-        _projectJobs.addAll(_demoProjectJobs);
-      }
-      if (_productJobs.isEmpty) {
-        _productJobs.addAll(_demoProductCuttingJobs);
-      }
     } catch (_) {
-      if (_projectJobs.isEmpty) {
-        _projectJobs.addAll(_demoProjectJobs);
-      }
-      if (_productJobs.isEmpty) {
-        _productJobs.addAll(_demoProductCuttingJobs);
-      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

@@ -92,11 +92,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
               .map((e) => Map<String, dynamic>.from(e as Map))
               .toList();
         } else {
-          _bahanCuttingList = [
-            {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-            {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-            {'barcode': '000123434', 'nama': 'Cooton Combad 4s', 'satuan': 'KG', 'jumlah': 7},
-          ];
+          _bahanCuttingList = [];
         }
 
         if (args['hasilCutting'] is List && (args['hasilCutting'] as List).isNotEmpty) {
@@ -104,24 +100,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
               .map((e) => Map<String, dynamic>.from(e as Map))
               .toList();
         } else {
-          _hasilCuttingList = [
-            {
-              'barcode': '000123434',
-              'nama': 'Kaos Lengan Pendek L',
-              'satuan': 'PCS',
-              'jumlah': 7,
-              'photoName': 'Photo1.jpg',
-              'showPreview': true,
-            },
-            {
-              'barcode': '000123434',
-              'nama': 'Kaos Lengan Pendek L',
-              'satuan': 'KG',
-              'jumlah': 7,
-              'photoName': 'Photo1.jpg',
-              'showDelete': true,
-            },
-          ];
+          _hasilCuttingList = [];
         }
 
         if (_pricePerUnit == 0 && _productCode.isNotEmpty && _productCode != '-') {
@@ -1337,15 +1316,15 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
             Expanded(
               child: _buildInfoColumn(
                 'Kode Project',
-                _productCode.isNotEmpty && _productCode != '-' && _productCode.startsWith('MP')
+                _productCode.isNotEmpty && _productCode != '-'
                     ? _productCode
-                    : (_code.isNotEmpty && _code != '-' ? _code : 'MP0232434'),
+                    : (_code.isNotEmpty && _code != '-' ? _code : '-'),
               ),
             ),
             Expanded(
               child: _buildInfoColumn(
                 'Tanggal',
-                _date.isNotEmpty && _date != '-' ? _date : '25/09/2026',
+                _date.isNotEmpty && _date != '-' ? _date : '-',
               ),
             ),
           ],
@@ -1353,12 +1332,12 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         const SizedBox(height: 12),
         _buildInfoRow(
           'Pemesan',
-          _pemesan.isNotEmpty && _pemesan != '-' ? _pemesan : 'Cep Akhyar Mubarok',
+          _pemesan.isNotEmpty && _pemesan != '-' ? _pemesan : '-',
         ),
         const SizedBox(height: 12),
         _buildInfoRow(
           'Koordinator',
-          _koordinator.isNotEmpty && _koordinator != '-' ? _koordinator : 'Ari Saepuloh',
+          _koordinator.isNotEmpty && _koordinator != '-' ? _koordinator : '-',
         ),
         const SizedBox(height: 12),
         Row(
@@ -1367,7 +1346,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
             Expanded(
               child: _buildInfoColumn(
                 'Dedline',
-                _deadline.isNotEmpty && _deadline != '-' ? _deadline : '25/09/2026',
+                _deadline.isNotEmpty && _deadline != '-' ? _deadline : '-',
               ),
             ),
             Expanded(
@@ -1404,7 +1383,7 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          _priority.isNotEmpty && _priority != '-' ? _priority : 'Sedang',
+                          _priority.isNotEmpty && _priority != '-' ? _priority : 'Normal',
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
@@ -1429,75 +1408,87 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ..._bahanCuttingList.map((item) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFEAECF0)),
+        if (_bahanCuttingList.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Belum ada rincian bahan cutting.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF98A2B3),
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item['barcode']?.toString() ?? '000123434',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF98A2B3),
+          )
+        else
+          ..._bahanCuttingList.map((item) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFEAECF0)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item['barcode']?.toString() ?? '-',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF98A2B3),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item['nama']?.toString() ?? 'Cooton Combad 4s',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColor.black,
+                        const SizedBox(height: 3),
+                        Text(
+                          item['nama']?.toString() ?? '-',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColor.black,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    item['satuan']?.toString() ?? 'KG',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B),
+                      ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '${item['jumlah'] ?? 7}',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      item['satuan']?.toString() ?? 'KG',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        }),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${item['jumlah'] ?? 0}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         const SizedBox(height: 16),
         const Text(
           'Perkiraan Hasil Cutting',
@@ -1508,80 +1499,92 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ..._hasilCuttingList.asMap().entries.map((entry) {
-          final index = entry.key;
-          final item = entry.value;
-          final bool isDelete = item['showDelete'] == true || index > 0;
-          final bool showPreview = item['showPreview'] == true || index == 0;
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFEAECF0)),
+        if (_hasilCuttingList.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Belum ada rincian perkiraan hasil cutting.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF98A2B3),
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['barcode']?.toString() ?? '000123434',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF98A2B3),
+          )
+        else
+          ..._hasilCuttingList.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            final bool isDelete = item['showDelete'] == true || index > 0;
+            final bool showPreview = item['showPreview'] == true || index == 0;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFEAECF0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['barcode']?.toString() ?? '-',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF98A2B3),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item['nama']?.toString() ?? 'Kaos Lengan Pendek L',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColor.black,
+                            const SizedBox(height: 3),
+                            Text(
+                              item['nama']?.toString() ?? '-',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColor.black,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        item['satuan']?.toString() ?? 'PCS',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${item['jumlah'] ?? 7}',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          item['satuan']?.toString() ?? 'PCS',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${item['jumlah'] ?? 0}',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
                     if (isDelete) ...[
                       const SizedBox(width: 6),
                       InkWell(
@@ -1648,10 +1651,11 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0xFFEAECF0)),
                           ),
-                          child: Center(
-                            child: CustomPaint(
-                              size: const Size(90, 100),
-                              painter: ShirtPainter(isBack: false),
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 44,
+                              color: Color(0xFF98A2B3),
                             ),
                           ),
                         ),
@@ -1665,10 +1669,11 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0xFFEAECF0)),
                           ),
-                          child: Center(
-                            child: CustomPaint(
-                              size: const Size(90, 100),
-                              painter: ShirtPainter(isBack: true),
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 44,
+                              color: Color(0xFF98A2B3),
                             ),
                           ),
                         ),
@@ -1758,10 +1763,11 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
           child: CachedProductImage(
             photoName: photoName,
             fit: BoxFit.contain,
-            fallbackBuilder: (context) => Center(
-              child: CustomPaint(
-                size: const Size(100, 110),
-                painter: ShirtPainter(isBack: isBack),
+            fallbackBuilder: (context) => const Center(
+              child: Icon(
+                Icons.image_outlined,
+                size: 48,
+                color: Color(0xFF98A2B3),
               ),
             ),
           ),
@@ -1769,7 +1775,6 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
         const SizedBox(height: 8),
         Text(
           label,
-
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
@@ -1781,187 +1786,4 @@ class _DetailPekerjaanScreenState extends State<DetailPekerjaanScreen> {
   }
 }
 
-class ShirtPainter extends CustomPainter {
-  final bool isBack;
-
-  ShirtPainter({required this.isBack});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double h = size.height;
-
-    final fabricPaint = Paint()
-      ..color = const Color(0xFF26282C)
-      ..style = PaintingStyle.fill;
-
-    final shadowPaint = Paint()
-      ..color = const Color(0xFF1E2023)
-      ..style = PaintingStyle.fill;
-
-    final seamPaint = Paint()
-      ..color = const Color(0xFF191B1D)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    final stitchPaint = Paint()
-      ..color = const Color(0xFF383C42)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
-
-    final double sx = w / 120.0;
-    final double sy = h / 130.0;
-
-    Offset pt(double x, double y) => Offset(x * sx, y * sy);
-
-    final leftSleevePath = Path()
-      ..moveTo(32 * sx, 22 * sy)
-      ..lineTo(8 * sx, 88 * sy)
-      ..lineTo(18 * sx, 92 * sy)
-      ..lineTo(30 * sx, 48 * sy)
-      ..close();
-    canvas.drawPath(leftSleevePath, shadowPaint);
-    canvas.drawPath(leftSleevePath, fabricPaint);
-    canvas.drawPath(leftSleevePath, seamPaint);
-
-    canvas.drawLine(pt(10, 82), pt(19, 86), stitchPaint);
-
-    final rightSleevePath = Path()
-      ..moveTo(88 * sx, 22 * sy)
-      ..lineTo(112 * sx, 88 * sy)
-      ..lineTo(102 * sx, 92 * sy)
-      ..lineTo(90 * sx, 48 * sy)
-      ..close();
-    canvas.drawPath(rightSleevePath, shadowPaint);
-    canvas.drawPath(rightSleevePath, fabricPaint);
-    canvas.drawPath(rightSleevePath, seamPaint);
-
-    canvas.drawLine(pt(110, 82), pt(101, 86), stitchPaint);
-
-    final bodyPath = Path()
-      ..moveTo(32 * sx, 22 * sy)
-      ..lineTo(46 * sx, 15 * sy)
-      ..quadraticBezierTo(60 * sx, isBack ? 13 * sy : 24 * sy, 74 * sx, 15 * sy)
-      ..lineTo(88 * sx, 22 * sy)
-      ..lineTo(89 * sx, 50 * sy)
-      ..lineTo(86 * sx, 118 * sy)
-      ..quadraticBezierTo(60 * sx, 122 * sy, 34 * sx, 118 * sy)
-      ..lineTo(31 * sx, 50 * sy)
-      ..close();
-
-    canvas.drawPath(bodyPath, fabricPaint);
-    canvas.drawPath(bodyPath, seamPaint);
-
-    final hemPath = Path()
-      ..moveTo(34 * sx, 114 * sy)
-      ..quadraticBezierTo(60 * sx, 118 * sy, 86 * sx, 114 * sy);
-    canvas.drawPath(hemPath, stitchPaint);
-
-    if (!isBack) {
-      final placketRect = Rect.fromLTRB(56 * sx, 20 * sy, 64 * sx, 78 * sy);
-      canvas.drawRect(placketRect, shadowPaint);
-      canvas.drawRect(placketRect, seamPaint);
-
-      final buttonPaint = Paint()
-        ..color = const Color(0xFF71767F)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(pt(60, 32), 1.6 * sx, buttonPaint);
-      canvas.drawCircle(pt(60, 48), 1.6 * sx, buttonPaint);
-      canvas.drawCircle(pt(60, 64), 1.6 * sx, buttonPaint);
-
-      final collarPaint = Paint()
-        ..color = const Color(0xFF2C3035)
-        ..style = PaintingStyle.fill;
-
-      final leftCollar = Path()
-        ..moveTo(46 * sx, 14 * sy)
-        ..lineTo(54 * sx, 34 * sy)
-        ..lineTo(59 * sx, 22 * sy)
-        ..close();
-      canvas.drawPath(leftCollar, collarPaint);
-      canvas.drawPath(leftCollar, seamPaint);
-
-      final rightCollar = Path()
-        ..moveTo(74 * sx, 14 * sy)
-        ..lineTo(66 * sx, 34 * sy)
-        ..lineTo(61 * sx, 22 * sy)
-        ..close();
-      canvas.drawPath(rightCollar, collarPaint);
-      canvas.drawPath(rightCollar, seamPaint);
-
-      final leftPocket = Rect.fromLTRB(37 * sx, 44 * sy, 51 * sx, 64 * sy);
-      canvas.drawRect(leftPocket, shadowPaint);
-      canvas.drawRect(leftPocket, stitchPaint);
-      canvas.drawLine(pt(37, 49), pt(51, 49), stitchPaint);
-
-      final rightPocket = Rect.fromLTRB(69 * sx, 44 * sy, 83 * sx, 64 * sy);
-      canvas.drawRect(rightPocket, shadowPaint);
-      canvas.drawRect(rightPocket, stitchPaint);
-      canvas.drawLine(pt(69, 49), pt(83, 49), stitchPaint);
-
-      final logoPaint = Paint()
-        ..color = const Color(0xFF1677FF)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(pt(76, 55), 3.5 * sx, logoPaint);
-
-      final logoInnerPaint = Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(pt(76, 55), 1.2 * sx, logoInnerPaint);
-    } else {
-      final backCollar = Path()
-        ..moveTo(46 * sx, 15 * sy)
-        ..quadraticBezierTo(60 * sx, 18 * sy, 74 * sx, 15 * sy)
-        ..quadraticBezierTo(60 * sx, 12 * sy, 46 * sx, 15 * sy);
-      canvas.drawPath(backCollar, shadowPaint);
-      canvas.drawPath(backCollar, seamPaint);
-
-      final yokePath = Path()
-        ..moveTo(32 * sx, 34 * sy)
-        ..lineTo(88 * sx, 34 * sy);
-      canvas.drawPath(yokePath, stitchPaint);
-
-      final textSpan = TextSpan(
-        text: 'rzfsoftware.com',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 6.5 * sx,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.3,
-        ),
-      );
-      final textPainter = TextPainter(
-        text: textSpan,
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset((60 * sx) - (textPainter.width / 2), 46 * sy),
-      );
-
-      final subSpan = TextSpan(
-        text: 'Smart Software Solution',
-        style: TextStyle(
-          color: const Color(0xFF90B0DF),
-          fontSize: 3.2 * sx,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.2,
-        ),
-      );
-      final subPainter = TextPainter(
-        text: subSpan,
-        textDirection: TextDirection.ltr,
-      );
-      subPainter.layout();
-      subPainter.paint(
-        canvas,
-        Offset((60 * sx) - (subPainter.width / 2), 55 * sy),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
 

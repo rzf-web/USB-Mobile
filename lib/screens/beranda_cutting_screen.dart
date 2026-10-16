@@ -371,21 +371,8 @@ class _BerandaCuttingScreenState extends State<BerandaCuttingScreen> {
       ),
     );
 
-    if (result != null && mounted) {
-      final Map<String, dynamic> newJob = (result is Map<String, dynamic>)
-          ? result
-          : {
-              'idproyek': 'JL002111938239',
-              'code': 'JL002111938239',
-              'date': '20/08/2026',
-              'name': 'Kemeja RZF Software',
-              'available': 50,
-              'priority': 'Sedang',
-              'unit': 'Pcs',
-              'pricePerUnit': 2000,
-              'pemesan': 'PT Maju Jaya',
-              'isProduct': true,
-            };
+    if (result is Map<String, dynamic> && mounted) {
+      final Map<String, dynamic> newJob = result;
 
       setState(() {
         _availableJobs.removeWhere((j) => j['code'] == newJob['code']);
@@ -964,11 +951,11 @@ class _BerandaCuttingScreenState extends State<BerandaCuttingScreen> {
     final int available = (job['available'] as num?)?.toInt() ?? 0;
     final int pricePerUnit = (job['pricePerUnit'] as num?)?.toInt() ?? 0;
     final bool isProduct = job['isProduct'] == true;
-    final String code = job['code']?.toString() ?? 'JL002111938239';
-    final String date = job['date']?.toString() ?? '20/08/2026';
-    final String name = job['name']?.toString() ?? 'Kemeja RZF Software';
+    final String code = job['code']?.toString() ?? '-';
+    final String date = job['date']?.toString() ?? '-';
+    final String name = job['name']?.toString() ?? '-';
     final String unit = job['unit']?.toString() ?? 'Pcs';
-    final String priority = job['priority']?.toString() ?? 'Sedang';
+    final String priority = job['priority']?.toString() ?? 'Normal';
 
     return Material(
       color: Colors.transparent,
@@ -993,6 +980,8 @@ class _BerandaCuttingScreenState extends State<BerandaCuttingScreen> {
               'isProduct': isProduct,
               'photo': job['photo'],
               'photo1': job['photo1'],
+              'bahanCutting': job['bahanCutting'],
+              'hasilCutting': job['hasilCutting'],
             },
           );
         },

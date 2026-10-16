@@ -79,6 +79,150 @@ class KonveksiService {
     return null;
   }
 
+  /// Mengambil daftar opsi Pemesan (dari master tb_pelanggan & tb_proyek),
+  /// Koordinator (dari master tb_pegawai), kode proyek berikutnya (auto-generate seperti app desktop),
+  /// serta daftar produk jenis bahan (dari master tb_item WHERE jenis='Bahan').
+  Future<Map<String, dynamic>> getProjectOptions({
+    required String idPegawai,
+  }) async {
+    List<String> pemesanList = [];
+    List<String> koordinatorList = [];
+    List<Map<String, dynamic>> bahanList = [];
+    List<String> jenisBahanList = [];
+    String nextProjectCode = '';
+
+    // 1. Coba ambil dari cache lokal terlebih dahulu (opsi dropdown)
+    final cached = AppCacheManager.getJson('project_options_$idPegawai');
+    if (cached is Map<String, dynamic>) {
+      final pList = (cached['pemesan'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      final kList = (cached['koordinator'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      final bList = (cached['bahan'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [];
+      final jbList = (cached['jenis_bahan'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      if (pList.isNotEmpty) {
+        pemesanList = pList;
+        koordinatorList = kList;
+      }
+      if (bList.isNotEmpty) {
+        bahanList = bList;
+        jenisBahanList = jbList;
+      }
+    }
+
+    // 2. Panggil action get_project_options dari employee_work.php
+    try {
+      final response = await _client.post(
+        ApiEndpoints.employeeWork,
+        data: {
+          'action': 'get_project_options',
+          'idpegawai': idPegawai,
+        },
+      );
+      if (response.data is Map<String, dynamic>) {
+        final data = response.data['data'];
+        if (data is Map<String, dynamic>) {
+          if (data['pemesan'] is List) {
+            final apiPemesan = (data['pemesan'] as List)
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty && e != '-')
+                .toList();
+            if (apiPemesan.isNotEmpty) {
+              pemesanList = apiPemesan;
+            }
+          }
+          if (data['koordinator'] is List) {
+            final apiKoor = (data['koordinator'] as List)
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty && e != '-')
+                .toList();
+            if (apiKoor.isNotEmpty) {
+              koordinatorList = apiKoor;
+            }
+          }
+          if (data['bahan'] is List) {
+            final apiBahan = (data['bahan'] as List)
+                .map((e) => e is Map ? Map<String, dynamic>.from(e) : null)
+                .whereType<Map<String, dynamic>>()
+                .toList();
+            if (apiBahan.isNotEmpty) {
+              bahanList = apiBahan;
+            }
+          }
+          if (data['jenis_bahan'] is List) {
+            final apiJb = (data['jenis_bahan'] as List)
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty && e != '-')
+                .toList();
+            if (apiJb.isNotEmpty) {
+              jenisBahanList = apiJb;
+            }
+          }
+          final apiCode = data['kode_project'] ?? data['next_project_code'];
+          if (apiCode != null && apiCode.toString().trim().isNotEmpty) {
+            nextProjectCode = apiCode.toString().trim();
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. Fallback: Ekstrak dari daftar pekerjaan yang ada (getAvailableJobs) jika masih kosong
+    if (pemesanList.isEmpty) {
+      try {
+        final jobs = await getAvailableJobs(idPegawai: idPegawai);
+        for (final j in jobs) {
+          final p = j.pemesan?.trim() ?? '';
+          if (p.isNotEmpty && p != '-' && !pemesanList.contains(p)) {
+            pemesanList.add(p);
+          }
+          final k = j.koordinator?.trim() ?? '';
+          if (k.isNotEmpty && k != '-' && !koordinatorList.contains(k)) {
+            koordinatorList.add(k);
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (bahanList.isEmpty) {
+      bahanList = [
+        {'barcode': '00001002', 'iditem': '00001002', 'nama': 'Cotton Combad 3s', 'satuan': 'Kg', 'kategori': 'Kain'},
+        {'barcode': '00001001', 'iditem': '00001001', 'nama': 'Cotton Combad 4s', 'satuan': 'Kg', 'kategori': 'Kain'},
+        {'barcode': '00001003', 'iditem': '00001003', 'nama': 'Crincle', 'satuan': 'Kg', 'kategori': 'Kain'},
+        {'barcode': '00001004', 'iditem': '00001004', 'nama': 'Polyester', 'satuan': 'Kg', 'kategori': 'Kain'},
+        {'barcode': '00001005', 'iditem': '00001005', 'nama': 'Katun', 'satuan': 'Kg', 'kategori': 'Kain'},
+      ];
+    }
+    if (jenisBahanList.isEmpty) {
+      jenisBahanList = bahanList.map((b) => (b['nama'] ?? '').toString()).where((s) => s.isNotEmpty).toList();
+    }
+
+    pemesanList.sort();
+    koordinatorList.sort();
+    jenisBahanList.sort();
+
+    final result = <String, dynamic>{
+      'pemesan': pemesanList,
+      'koordinator': koordinatorList,
+      'kode_project': nextProjectCode,
+      'next_project_code': nextProjectCode,
+      'bahan': bahanList,
+      'jenis_bahan': jenisBahanList,
+    };
+
+    if (pemesanList.isNotEmpty || koordinatorList.isNotEmpty || bahanList.isNotEmpty) {
+      AppCacheManager.setJson(
+        'project_options_$idPegawai',
+        {
+          'pemesan': pemesanList,
+          'koordinator': koordinatorList,
+          'bahan': bahanList,
+          'jenis_bahan': jenisBahanList,
+        },
+        ttl: const Duration(hours: 2),
+      );
+    }
+
+    return result;
+  }
+
   Future<List<EmployeeJobModel>> getAvailableJobs({
     required String idPegawai,
     String search = '',

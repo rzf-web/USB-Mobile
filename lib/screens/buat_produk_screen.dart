@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constant/app_color.dart';
+import '../core/session/session_manager.dart';
+import '../services/konveksi_service.dart';
 
 class BahanCuttingItem {
   final String barcode;
@@ -41,37 +43,29 @@ class BuatProdukScreen extends StatefulWidget {
 }
 
 class _BuatProdukScreenState extends State<BuatProdukScreen> {
-  int _currentStep = 0; // 0: Identitas Proyek, 1: Bahan Cutting, 2: Perkiraan Hasil Cutting
+  int _currentStep = 0;
+  final TextEditingController _kodeProjectController = TextEditingController();
+  final TextEditingController _tanggalController = TextEditingController();
+  final TextEditingController _deadlineController = TextEditingController();
 
-  // Step 1 Controllers
-  final TextEditingController _kodeProjectController =
-      TextEditingController(text: 'JL002111938239');
-  final TextEditingController _tanggalController =
-      TextEditingController(text: '20/08/2026');
-  final TextEditingController _deadlineController =
-      TextEditingController(text: '20/08/2026');
+  String _selectedPemesan = '- Pilih -';
+  String _selectedKoordinator = '- Pilih -';
+  String _selectedJenisBahan = '- Pilih -';
+  String _selectedPrioritas = '- Pilih -';
+  String _selectedStatus = '- Pilih -';
 
-  String _selectedPemesan = 'PT Maju Jaya';
-  String _selectedKoordinator = 'Ari Wibowo';
-  String _selectedPrioritas = 'Sedang';
-  String _selectedStatus = 'Diproses';
+  final TextEditingController _customPemesanController = TextEditingController();
+  final TextEditingController _customKoordinatorController = TextEditingController();
+  final TextEditingController _customJenisBahanController = TextEditingController();
+  bool _isCustomPemesan = false;
+  bool _isCustomKoordinator = false;
+  bool _isCustomJenisBahan = false;
+  bool _isLoadingOptions = false;
 
-  final List<String> _pemesanOptions = [
-    '- Pilih -',
-    'PT Maju Jaya',
-    'CV Konveksi Abadi',
-    'Distro Bandung',
-    'Budi Santoso',
-    'Ari Wibowo',
-  ];
-
-  final List<String> _koordinatorOptions = [
-    '- Pilih -',
-    'Ari Wibowo',
-    'Ahmad Fauzi',
-    'Siti Rahma',
-    'Budi Santoso',
-  ];
+  final List<String> _pemesanOptions = ['- Pilih -'];
+  final List<String> _koordinatorOptions = ['- Pilih -'];
+  final List<String> _jenisBahanOptions = ['- Pilih -'];
+  final List<Map<String, dynamic>> _bahanDetailList = [];
 
   final List<String> _prioritasOptions = [
     '- Pilih -',
@@ -92,11 +86,118 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
   final List<BahanCuttingItem> _bahanCuttingList = [];
   final List<HasilCuttingItem> _hasilCuttingList = [];
 
+  String _generateDefaultProjectCode() {
+    final now = DateTime.now();
+    final yy = (now.year % 100).toString().padLeft(2, '0');
+    final mm = now.month.toString().padLeft(2, '0');
+    final dd = now.day.toString().padLeft(2, '0');
+    return 'MP$yy$mm${dd}001';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    final day = now.day.toString().padLeft(2, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final year = now.year.toString();
+    final formattedDate = '$day/$month/$year';
+    _tanggalController.text = formattedDate;
+    _deadlineController.text = formattedDate;
+    _kodeProjectController.text = _generateDefaultProjectCode();
+    _loadProjectOptions();
+  }
+
+  Future<void> _loadProjectOptions() async {
+    final empId = SessionManager.employeeId ?? '';
+    if (empId.isEmpty) return;
+    setState(() => _isLoadingOptions = true);
+    try {
+      final options = await KonveksiService().getProjectOptions(idPegawai: empId);
+      final pemesans = (options['pemesan'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      final koordinators = (options['koordinator'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      final bahanRaw = (options['bahan'] as List?)
+              ?.map((e) => e is Map ? Map<String, dynamic>.from(e) : null)
+              .whereType<Map<String, dynamic>>()
+              .toList() ??
+          [];
+      final jenisBahans = (options['jenis_bahan'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      final apiKodeProject = options['kode_project']?.toString() ?? options['next_project_code']?.toString() ?? '';
+
+      if (mounted) {
+        setState(() {
+          if (apiKodeProject.isNotEmpty &&
+              (_kodeProjectController.text.isEmpty ||
+                  _kodeProjectController.text == _generateDefaultProjectCode())) {
+            _kodeProjectController.text = apiKodeProject;
+          }
+
+          final uniquePemesans = <String>{'- Pilih -'};
+          for (final p in pemesans) {
+            final clean = p.trim();
+            if (clean.isNotEmpty &&
+                clean != '-' &&
+                clean != '- Pilih -' &&
+                clean != '+ Ketik Pemesan Baru') {
+              uniquePemesans.add(clean);
+            }
+          }
+          uniquePemesans.add('+ Ketik Pemesan Baru');
+
+          final uniqueKoordinators = <String>{'- Pilih -'};
+          for (final k in koordinators) {
+            final clean = k.trim();
+            if (clean.isNotEmpty &&
+                clean != '-' &&
+                clean != '- Pilih -' &&
+                clean != '+ Ketik Koordinator Baru') {
+              uniqueKoordinators.add(clean);
+            }
+          }
+          uniqueKoordinators.add('+ Ketik Koordinator Baru');
+
+          _bahanDetailList.clear();
+          _bahanDetailList.addAll(bahanRaw);
+
+          final uniqueJenisBahan = <String>{'- Pilih -'};
+          for (final jb in jenisBahans) {
+            final clean = jb.trim();
+            if (clean.isNotEmpty &&
+                clean != '-' &&
+                clean != '- Pilih -' &&
+                clean != '+ Ketik Bahan Baru') {
+              uniqueJenisBahan.add(clean);
+            }
+          }
+          uniqueJenisBahan.add('+ Ketik Bahan Baru');
+
+          _pemesanOptions.clear();
+          _pemesanOptions.addAll(uniquePemesans);
+
+          _koordinatorOptions.clear();
+          _koordinatorOptions.addAll(uniqueKoordinators);
+
+          _jenisBahanOptions.clear();
+          _jenisBahanOptions.addAll(uniqueJenisBahan);
+
+          _isLoadingOptions = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingOptions = false);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _kodeProjectController.dispose();
     _tanggalController.dispose();
     _deadlineController.dispose();
+    _customPemesanController.dispose();
+    _customKoordinatorController.dispose();
+    _customJenisBahanController.dispose();
     super.dispose();
   }
 
@@ -155,36 +256,79 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
 
   void _onNext() {
     if (_currentStep == 0) {
+      if (_kodeProjectController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kode Project harus diisi')),
+        );
+        return;
+      }
       setState(() {
         _currentStep = 1;
       });
     } else if (_currentStep == 1) {
-      setState(() {
-        _currentStep = 2;
-      });
+      if (_bahanCuttingList.isEmpty) {
+        _showTambahBahanBottomSheet();
+      } else {
+        setState(() {
+          _currentStep = 2;
+        });
+      }
     } else if (_currentStep == 2) {
       if (_hasilCuttingList.isEmpty) {
         _showTambahHasilBottomSheet();
       } else {
         // Selesai / Simpan produk -> kembali ke Beranda dengan data produk
+        final finalPemesan = _isCustomPemesan
+            ? _customPemesanController.text.trim()
+            : (_selectedPemesan != '- Pilih -' ? _selectedPemesan : '');
+        final finalKoordinator = _isCustomKoordinator
+            ? _customKoordinatorController.text.trim()
+            : (_selectedKoordinator != '- Pilih -' ? _selectedKoordinator : '');
+        final finalJenisBahan = _isCustomJenisBahan
+            ? _customJenisBahanController.text.trim()
+            : (_selectedJenisBahan != '- Pilih -'
+                ? _selectedJenisBahan
+                : (_bahanCuttingList.isNotEmpty ? _bahanCuttingList.first.nama : '-'));
+
+        if (finalPemesan.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Pemesan harus dipilih atau diisi')),
+          );
+          return;
+        }
+
         final item = _hasilCuttingList.first;
         final createdData = {
-          'idproyek': _kodeProjectController.text.trim().isNotEmpty
-              ? _kodeProjectController.text.trim()
-              : 'JL002111938239',
-          'code': _kodeProjectController.text.trim().isNotEmpty
-              ? _kodeProjectController.text.trim()
-              : 'JL002111938239',
-          'date': _tanggalController.text.trim().isNotEmpty
-              ? _tanggalController.text.trim()
-              : '20/08/2026',
-          'name': item.nama.isNotEmpty ? item.nama : 'Kemeja RZF Software',
-          'available': item.jumlah > 0 ? item.jumlah : 50,
-          'priority': _selectedPrioritas != '- Pilih -' ? _selectedPrioritas : 'Sedang',
+          'idproyek': _kodeProjectController.text.trim(),
+          'code': _kodeProjectController.text.trim(),
+          'date': _tanggalController.text.trim(),
+          'deadline': _deadlineController.text.trim(),
+          'name': item.nama,
+          'available': item.jumlah,
+          'priority': _selectedPrioritas != '- Pilih -' ? _selectedPrioritas : 'Normal',
           'unit': item.satuan != '- Pilih -' ? item.satuan : 'Pcs',
-          'pricePerUnit': 2000,
-          'pemesan': _selectedPemesan != '- Pilih -' ? _selectedPemesan : 'PT Maju Jaya',
+          'pricePerUnit': 0,
+          'pemesan': finalPemesan,
+          'jenis': finalJenisBahan,
+          'koordinator': finalKoordinator.isNotEmpty ? finalKoordinator : '-',
+          'status': _selectedStatus != '- Pilih -' ? _selectedStatus : '-',
           'isProduct': true,
+          'bahanCutting': _bahanCuttingList
+              .map((b) => {
+                    'barcode': b.barcode,
+                    'nama': b.nama,
+                    'satuan': b.satuan,
+                    'jumlah': b.jumlah,
+                  })
+              .toList(),
+          'hasilCutting': _hasilCuttingList
+              .map((h) => {
+                    'barcode': h.barcode,
+                    'nama': h.nama,
+                    'satuan': h.satuan,
+                    'jumlah': h.jumlah,
+                  })
+              .toList(),
         };
         Navigator.pop(context, createdData);
       }
@@ -195,7 +339,25 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
     final barcodeCtrl = TextEditingController();
     final jumlahCtrl = TextEditingController();
     final namaCtrl = TextEditingController();
+    String selectedBahanDropdown = _selectedJenisBahan != '- Pilih -' && _jenisBahanOptions.contains(_selectedJenisBahan)
+        ? _selectedJenisBahan
+        : (_jenisBahanOptions.length > 1 ? _jenisBahanOptions[1] : '- Pilih -');
     String selectedSatuan = '- Pilih -';
+
+    // Auto-fill jika ada bahan yang dipilih
+    if (selectedBahanDropdown != '- Pilih -' && selectedBahanDropdown != '+ Ketik Bahan Baru') {
+      final matched = _bahanDetailList.firstWhere(
+        (b) => (b['nama'] ?? '').toString().toLowerCase() == selectedBahanDropdown.toLowerCase(),
+        orElse: () => {},
+      );
+      if (matched.isNotEmpty) {
+        barcodeCtrl.text = matched['barcode']?.toString() ?? '';
+        namaCtrl.text = matched['nama']?.toString() ?? selectedBahanDropdown;
+        selectedSatuan = matched['satuan']?.toString() ?? 'Kg';
+      } else {
+        namaCtrl.text = selectedBahanDropdown;
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -247,6 +409,95 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                     ],
                   ),
                   const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      const Text(
+                        'Jenis Bahan',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF344054),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF2F4F7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Data Produk',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF475467),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: _jenisBahanOptions.contains(selectedBahanDropdown)
+                        ? selectedBahanDropdown
+                        : _jenisBahanOptions.first,
+                    items: _jenisBahanOptions
+                        .map(
+                          (jb) => DropdownMenuItem(
+                            value: jb,
+                            child: Text(
+                              jb,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: jb == '- Pilih -'
+                                    ? const Color(0xFF98A2B3)
+                                    : (jb.startsWith('+') ? const Color(0xFF0F5A50) : AppColor.black),
+                                fontWeight: jb.startsWith('+') ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setSheetState(() {
+                          selectedBahanDropdown = val;
+                          if (val != '- Pilih -' && val != '+ Ketik Bahan Baru') {
+                            final matched = _bahanDetailList.firstWhere(
+                              (b) => (b['nama'] ?? '').toString().toLowerCase() == val.toLowerCase(),
+                              orElse: () => {},
+                            );
+                            if (matched.isNotEmpty) {
+                              barcodeCtrl.text = matched['barcode']?.toString() ?? '';
+                              namaCtrl.text = matched['nama']?.toString() ?? val;
+                              selectedSatuan = matched['satuan']?.toString() ?? 'Kg';
+                            } else {
+                              namaCtrl.text = val;
+                            }
+                          } else if (val == '+ Ketik Bahan Baru') {
+                            barcodeCtrl.clear();
+                            namaCtrl.clear();
+                          }
+                        });
+                      }
+                    },
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   const Text(
                     'Barcode',
                     style: TextStyle(
@@ -258,6 +509,25 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: barcodeCtrl,
+                    onChanged: (val) {
+                      final cleanVal = val.trim();
+                      if (cleanVal.isNotEmpty) {
+                        final matched = _bahanDetailList.firstWhere(
+                          (b) => (b['barcode'] ?? '').toString() == cleanVal,
+                          orElse: () => {},
+                        );
+                        if (matched.isNotEmpty) {
+                          setSheetState(() {
+                            namaCtrl.text = matched['nama']?.toString() ?? '';
+                            selectedSatuan = matched['satuan']?.toString() ?? 'Kg';
+                            final matchedNama = matched['nama']?.toString() ?? '';
+                            if (_jenisBahanOptions.contains(matchedNama)) {
+                              selectedBahanDropdown = matchedNama;
+                            }
+                          });
+                        }
+                      }
+                    },
                     decoration: InputDecoration(
                       hintText: 'Masukan atau cari barcode',
                       hintStyle: const TextStyle(
@@ -338,8 +608,10 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                             ),
                             const SizedBox(height: 6),
                             DropdownButtonFormField<String>(
-                              initialValue: selectedSatuan,
-                              items: ['- Pilih -', 'KG', 'Meter', 'Roll', 'Yard', 'Pcs']
+                              initialValue: ['- Pilih -', 'Kg', 'KG', 'Meter', 'Roll', 'Yard', 'Pcs'].contains(selectedSatuan)
+                                  ? selectedSatuan
+                                  : '- Pilih -',
+                              items: ['- Pilih -', 'Kg', 'KG', 'Meter', 'Roll', 'Yard', 'Pcs']
                                   .map(
                                     (s) => DropdownMenuItem(
                                       value: s,
@@ -379,7 +651,7 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                   ),
                   const SizedBox(height: 14),
                   const Text(
-                    'Nama Produk',
+                    'Nama / Spesifikasi Bahan',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -390,7 +662,7 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                   TextField(
                     controller: namaCtrl,
                     decoration: InputDecoration(
-                      hintText: 'Nama produk',
+                      hintText: 'Nama jenis bahan',
                       hintStyle: const TextStyle(
                         fontSize: 12.5,
                         color: Color(0xFF98A2B3),
@@ -415,20 +687,28 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                     height: 46,
                     child: ElevatedButton(
                       onPressed: () {
-                        final nama = namaCtrl.text.trim().isNotEmpty
-                            ? namaCtrl.text.trim()
-                            : 'Cooton Combad 4s';
-                        final barcode = barcodeCtrl.text.trim().isNotEmpty
-                            ? barcodeCtrl.text.trim()
-                            : '000123434';
+                        final nama = namaCtrl.text.trim();
+                        final barcode = barcodeCtrl.text.trim();
                         final parsedJumlah =
                             int.tryParse(jumlahCtrl.text.trim());
                         final jumlah = (parsedJumlah != null && parsedJumlah > 0)
                             ? parsedJumlah
-                            : 7;
+                            : 0;
                         final satuan = selectedSatuan != '- Pilih -'
                             ? selectedSatuan
-                            : 'KG';
+                            : '';
+
+                        if (nama.isEmpty ||
+                            barcode.isEmpty ||
+                            jumlah <= 0 ||
+                            satuan.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Harap lengkapi semua data bahan cutting'),
+                            ),
+                          );
+                          return;
+                        }
 
                         setState(() {
                           _bahanCuttingList.add(
@@ -693,20 +973,28 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                     height: 46,
                     child: ElevatedButton(
                       onPressed: () {
-                        final nama = namaCtrl.text.trim().isNotEmpty
-                            ? namaCtrl.text.trim()
-                            : 'Kemeja RZF Software';
-                        final barcode = barcodeCtrl.text.trim().isNotEmpty
-                            ? barcodeCtrl.text.trim()
-                            : '000123434';
+                        final nama = namaCtrl.text.trim();
+                        final barcode = barcodeCtrl.text.trim();
                         final parsedJumlah =
                             int.tryParse(jumlahCtrl.text.trim());
                         final jumlah = (parsedJumlah != null && parsedJumlah > 0)
                             ? parsedJumlah
-                            : 50;
+                            : 0;
                         final satuan = selectedSatuan != '- Pilih -'
                             ? selectedSatuan
-                            : 'Pcs';
+                            : '';
+
+                        if (nama.isEmpty ||
+                            barcode.isEmpty ||
+                            jumlah <= 0 ||
+                            satuan.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Harap lengkapi semua data hasil cutting'),
+                            ),
+                          );
+                          return;
+                        }
 
                         setState(() {
                           _hasilCuttingList.add(
@@ -715,8 +1003,6 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                               nama: nama,
                               satuan: satuan,
                               jumlah: jumlah,
-                              photoName: 'Photo1.jpg',
-                              photoAsset: 'assets/hero-image.png',
                             ),
                           );
                         });
@@ -868,19 +1154,38 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Kode Project',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF344054),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text(
+                          'Kode Project',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF344054),
+                          ),
+                        ),
+                        Text(
+                          'Otomatis',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF0F5A50),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _kodeProjectController,
-                      style: const TextStyle(fontSize: 13, color: AppColor.black),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColor.black,
+                        letterSpacing: 0.5,
+                      ),
                       decoration: InputDecoration(
+                        hintText: 'Contoh: MP261016001',
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 12,
@@ -946,17 +1251,49 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Pemesan',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF344054),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Pemesan',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF344054),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF2F4F7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'Pelanggan',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF475467),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_isLoadingOptions)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF0F5A50)),
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
-            initialValue: _selectedPemesan,
+            key: ValueKey('dropdown_pemesan_${_pemesanOptions.join(',')}'),
+            initialValue: _pemesanOptions.contains(_selectedPemesan) ? _selectedPemesan : _pemesanOptions.first,
             items: _pemesanOptions
                 .map(
                   (p) => DropdownMenuItem(
@@ -967,14 +1304,20 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                         fontSize: 13,
                         color: p == '- Pilih -'
                             ? const Color(0xFF98A2B3)
-                            : AppColor.black,
+                            : (p.startsWith('+') ? const Color(0xFF0F5A50) : AppColor.black),
+                        fontWeight: p.startsWith('+') ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                   ),
                 )
                 .toList(),
             onChanged: (val) {
-              if (val != null) setState(() => _selectedPemesan = val);
+              if (val != null) {
+                setState(() {
+                  _selectedPemesan = val;
+                  _isCustomPemesan = val == '+ Ketik Pemesan Baru';
+                });
+              }
             },
             decoration: InputDecoration(
               contentPadding: const EdgeInsets.symmetric(
@@ -991,18 +1334,160 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Koordinator',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF344054),
+          if (_isCustomPemesan) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _customPemesanController,
+              style: const TextStyle(fontSize: 13, color: AppColor.black),
+              decoration: InputDecoration(
+                hintText: 'Ketik nama pemesan',
+                hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF98A2B3)),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                ),
+              ),
             ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Text(
+                'Jenis Bahan',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF344054),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2F4F7),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Data Produk',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF475467),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
-            initialValue: _selectedKoordinator,
+            key: ValueKey('dropdown_jenis_bahan_${_jenisBahanOptions.join(',')}'),
+            initialValue: _jenisBahanOptions.contains(_selectedJenisBahan)
+                ? _selectedJenisBahan
+                : _jenisBahanOptions.first,
+            items: _jenisBahanOptions
+                .map(
+                  (jb) => DropdownMenuItem(
+                    value: jb,
+                    child: Text(
+                      jb,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: jb == '- Pilih -'
+                            ? const Color(0xFF98A2B3)
+                            : (jb.startsWith('+') ? const Color(0xFF0F5A50) : AppColor.black),
+                        fontWeight: jb.startsWith('+') ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (val) {
+              if (val != null) {
+                setState(() {
+                  _selectedJenisBahan = val;
+                  _isCustomJenisBahan = val == '+ Ketik Bahan Baru';
+                });
+              }
+            },
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+              ),
+            ),
+          ),
+          if (_isCustomJenisBahan) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _customJenisBahanController,
+              style: const TextStyle(fontSize: 13, color: AppColor.black),
+              decoration: InputDecoration(
+                hintText: 'Ketik nama jenis bahan',
+                hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF98A2B3)),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Text(
+                'Koordinator',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF344054),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2F4F7),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Data Pegawai',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF475467),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            key: ValueKey('dropdown_koordinator_${_koordinatorOptions.join(',')}'),
+            initialValue: _koordinatorOptions.contains(_selectedKoordinator) ? _selectedKoordinator : _koordinatorOptions.first,
             items: _koordinatorOptions
                 .map(
                   (k) => DropdownMenuItem(
@@ -1013,14 +1498,20 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
                         fontSize: 13,
                         color: k == '- Pilih -'
                             ? const Color(0xFF98A2B3)
-                            : AppColor.black,
+                            : (k.startsWith('+') ? const Color(0xFF0F5A50) : AppColor.black),
+                        fontWeight: k.startsWith('+') ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                   ),
                 )
                 .toList(),
             onChanged: (val) {
-              if (val != null) setState(() => _selectedKoordinator = val);
+              if (val != null) {
+                setState(() {
+                  _selectedKoordinator = val;
+                  _isCustomKoordinator = val == '+ Ketik Koordinator Baru';
+                });
+              }
             },
             decoration: InputDecoration(
               contentPadding: const EdgeInsets.symmetric(
@@ -1037,6 +1528,29 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
               ),
             ),
           ),
+          if (_isCustomKoordinator) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _customKoordinatorController,
+              style: const TextStyle(fontSize: 13, color: AppColor.black),
+              decoration: InputDecoration(
+                hintText: 'Ketik nama koordinator',
+                hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF98A2B3)),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -1342,7 +1856,7 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
               ),
               const SizedBox(height: 14),
               const Text(
-                'Tidak Ada Bahan Cutting',
+                'Tidak Ada Perkiraan Hasil Cutting',
                 style: TextStyle(
                   fontSize: 12.5,
                   color: Color(0xFF94A3B8),
@@ -1464,7 +1978,7 @@ class _BuatProdukScreenState extends State<BuatProdukScreen> {
               Row(
                 children: [
                   Text(
-                    item.photoName ?? 'Photo1.jpg',
+                    item.photoName ?? 'Belum ada foto',
                     style: const TextStyle(
                       fontSize: 12,
                       color: Color(0xFF475467),
